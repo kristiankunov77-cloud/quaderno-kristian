@@ -6,9 +6,12 @@
 create table if not exists public.promemoria (
   user_id uuid primary key default auth.uid() references auth.users (id) on delete cascade,
   attivo boolean not null default true,
-  ora smallint not null default 21 check (ora between 0 and 23),
+  ore smallint[] not null default '{12,18,21}',
   ultimo_accesso date
 );
+-- Se avevi già creato la tabella con un orario solo, passa a più orari.
+alter table public.promemoria add column if not exists ore smallint[] not null default '{12,18,21}';
+alter table public.promemoria drop column if exists ora;
 
 -- I dispositivi (telefono, computer) su cui arrivano le notifiche.
 create table if not exists public.dispositivi (
@@ -30,8 +33,8 @@ create policy "proprietario" on public.promemoria
 create policy "proprietario" on public.dispositivi
   for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 
--- Ogni ora chiama la funzione "promemoria", che manda la notifica solo all'ora scelta
--- e solo se quel giorno non hai aperto l'app.
+-- Ogni ora chiama la funzione "promemoria", che manda la notifica solo negli orari scelti
+-- e solo se quel giorno non hai ancora aperto l'app.
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
 

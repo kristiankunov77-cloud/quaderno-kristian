@@ -1,6 +1,6 @@
 // Edge Function "promemoria": manda la notifica serale del Quaderno.
-// - Chiamata ogni ora dal cron (con CRON_SECRET): avvisa chi ha il promemoria a quest'ora
-//   e oggi non ha ancora aperto l'app.
+// - Chiamata ogni ora dal cron (con CRON_SECRET): se quest'ora è tra quelle scelte
+//   e oggi non hai ancora aperto l'app, manda una frase più o meno cattiva.
 // - Chiamata dall'app con il tuo login: manda subito una notifica di prova.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
@@ -12,24 +12,49 @@ const APP_URL = "https://kristiankunov77-cloud.github.io/quaderno-kristian/";
 
 webpush.setVapidDetails(APP_URL, Deno.env.get("VAPID_PUBLIC_KEY")!, Deno.env.get("VAPID_PRIVATE_KEY")!);
 
-const TITOLI = ["Ehi Kristian!", "Sveglia!", "Ultima chiamata", "Quaderno di Kristian", "Oh, Kristian"];
-const FRASI = [
-  "Sono le {ora} e il Quaderno è ancora vuoto. Cosa cazzo stai facendo? Aprilo.",
-  "La giornata sta per finire e tu non hai scritto niente. Dai, sono due minuti.",
-  "Le spese non si scrivono da sole, campione.",
-  "Ultimo avviso prima che la giornata sparisca nel nulla. Apri il Quaderno.",
-  "Hai passato ore sul telefono e non trovi due minuti per me? Ma dai.",
-  "Svegliaaa! Obiettivi, spese, ore di lavoro. Muoviti.",
-  "Il Kristian di domani ti ringrazierà. Quello di adesso però deve aprire l'app.",
-  "Ti sei dimenticato di me? Il Quaderno ti aspetta, offeso.",
-  "Dai cazzo, sono due minuti: scrivi la tua giornata.",
-  "Ultima ora: Kristian non ha ancora aperto il Quaderno. Il mondo è sconvolto.",
-  "Quanto hai speso oggi? Non lo sai, vero? Appunto. Apri l'app.",
-  "Se non scrivi la giornata adesso, domani non te la ricordi. Fidati.",
-  "Toc toc. Chi è? La giornata che sta finendo. Scrivila!",
-  "Ancora niente? Guarda che lo vedo. Apri il Quaderno, forza.",
-  "Muovi il culo e segna gli obiettivi di oggi. Poi puoi tornare a scrollare.",
+// Tre livelli: il primo promemoria della giornata è tranquillo, l'ultimo è cattivo.
+const LIVELLI = [
+  {
+    titoli: ["Ciao Kristian", "Piccolo promemoria", "Quaderno di Kristian"],
+    frasi: [
+      "Pausa pranzo? Due minuti per segnare cosa hai fatto stamattina.",
+      "Quando hai un attimo, apri il Quaderno e scrivi com'è andata finora.",
+      "Segna le spese di stamattina finché te le ricordi.",
+      "I tuoi obiettivi di oggi ti aspettano. Con calma, eh.",
+      "Mentre mangi, dai un'occhiata al Quaderno?",
+    ],
+  },
+  {
+    titoli: ["Ehi Kristian!", "Sveglia!", "Oh, Kristian"],
+    frasi: [
+      "Sono le {ora} e il Quaderno è ancora vuoto. Non farmi arrabbiare.",
+      "Le spese non si scrivono da sole, campione.",
+      "Hai passato ore sul telefono e non trovi due minuti per me? Ma dai.",
+      "Svegliaaa! Obiettivi, spese, ore di lavoro. Muoviti.",
+      "Ancora niente? Guarda che lo vedo. Apri il Quaderno, forza.",
+      "Quanto hai speso oggi? Non lo sai, vero? Appunto. Apri l'app.",
+    ],
+  },
+  {
+    titoli: ["Ultima chiamata", "KRISTIAN!", "Adesso basta"],
+    frasi: [
+      "Sono le {ora} e il Quaderno è ancora vuoto. Cosa cazzo stai facendo? Aprilo.",
+      "Dai cazzo, sono due minuti: scrivi la tua giornata.",
+      "Muovi il culo e segna gli obiettivi di oggi. Poi puoi tornare a scrollare.",
+      "Ultimo avviso prima che la giornata sparisca nel nulla. Apri il Quaderno, cazzo.",
+      "Ti ho scritto prima, ti ho riscritto dopo. Adesso apri questa cazzo di app.",
+      "Ultima ora: Kristian ignora il Quaderno da tutto il giorno. Il mondo è sconvolto, e pure io.",
+    ],
+  },
 ];
+
+// Livello in base alla posizione dell'orario tra quelli scelti: primo 0, ultimo 2.
+function livello(ore: number[], ora: number) {
+  const ordinate = [...ore].sort((a, b) => a - b);
+  const i = ordinate.indexOf(ora);
+  if (ordinate.length <= 1) return 2;
+  return Math.round((i / (ordinate.length - 1)) * 2);
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -56,10 +81,13 @@ Deno.serve(async (req) => {
 
   let utenti: string[];
   let prova = false;
+  const livelloDi = new Map<string, number>();
   if (CRON_SECRET && token === CRON_SECRET) {
-    const { data, error } = await db.from("promemoria").select("user_id, ultimo_accesso").eq("attivo", true).eq("ora", ora);
+    const { data, error } = await db.from("promemoria").select("user_id, ultimo_accesso, ore").eq("attivo", true).contains("ore", [ora]);
     if (error) return json({ errore: error.message }, 500);
-    utenti = (data ?? []).filter((r) => r.ultimo_accesso !== oggi).map((r) => r.user_id);
+    const daAvvisare = (data ?? []).filter((r) => r.ultimo_accesso !== oggi);
+    utenti = daAvvisare.map((r) => r.user_id);
+    for (const r of daAvvisare) livelloDi.set(r.user_id, livello(r.ore, ora));
   } else {
     const { data: { user } } = await db.auth.getUser(token);
     if (!user) return json({ errore: "Non autorizzato" }, 401);
@@ -68,15 +96,18 @@ Deno.serve(async (req) => {
   }
   if (!utenti.length) return json({ inviate: 0 });
 
-  const { data: disp, error } = await db.from("dispositivi").select("endpoint, subscription").in("user_id", utenti);
+  const { data: disp, error } = await db.from("dispositivi").select("endpoint, subscription, user_id").in("user_id", utenti);
   if (error) return json({ errore: error.message }, 500);
 
   let inviate = 0;
   const errori: string[] = [];
   for (const d of disp ?? []) {
     const msg = prova
-      ? { title: "Prova riuscita!", body: "Le notifiche funzionano. Stasera, se non apri l'app, ti rompo le scatole così." }
-      : { title: pick(TITOLI), body: pick(FRASI).replace("{ora}", `${ora}`) };
+      ? { title: "Prova riuscita!", body: "Le notifiche funzionano. Se un giorno non apri l'app, ti scrivo negli orari scelti, sempre più arrabbiato." }
+      : (() => {
+        const l = LIVELLI[livelloDi.get(d.user_id) ?? 2];
+        return { title: pick(l.titoli), body: pick(l.frasi).replace("{ora}", `${ora}`) };
+      })();
     try {
       await webpush.sendNotification(d.subscription, JSON.stringify({ ...msg, url: APP_URL }), { TTL: 3600 });
       inviate++;
