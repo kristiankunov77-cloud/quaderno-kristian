@@ -63,6 +63,7 @@ button { cursor: pointer }
   padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)) }
 .tab { background: none; border: 0; border-radius: 10px; padding: 6px 2px; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; color: var(--muted) }
 .tab svg { width: 22px; height: 22px }
+.tab span { text-align: center; line-height: 1.2 }
 .tab[aria-current="page"] { color: var(--fg); background: var(--accent-soft) }
 .brand { display: none }
 @media (min-width: 860px) {
@@ -148,10 +149,11 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
 .facts dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 16px }
 .bar.sel .d { color: var(--fg); font-weight: 600 }
 .hbars { display: grid; gap: 8px }
-.hbar { display: grid; grid-template-columns: minmax(0, 7.5em) 1fr auto; gap: 10px; align-items: center; font-size: 14px }
+.hbar { display: grid; grid-template-columns: minmax(0, 8.5em) 1fr 5.5em; gap: 10px; align-items: center; font-size: 14px }
 .hbar .t { height: 10px; background: var(--bg); border-radius: 99px; overflow: hidden; border: 1px solid var(--line) }
 .hbar .t i { display: block; height: 100%; background: var(--c) }
 .hbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.hbar .num { text-align: right }
 
 .banner { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 14px; border-radius: var(--r); background: var(--accent-soft); font-size: 14px }
 .banner p { margin: 0; flex: 1 1 220px }
@@ -164,6 +166,13 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
 .hour[aria-pressed="true"] { background: var(--fg); color: var(--surface); border-color: var(--fg) }
 .tones { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted) }
 .tones b { font-family: var(--font-mono); font-weight: 500; color: var(--fg) }
+.catgrid { display: grid; grid-template-columns: minmax(0, 1fr) 64px 64px; gap: 8px 8px; align-items: center }
+.catgrid .head { font-size: 12.5px; color: var(--muted); font-weight: 500 }
+.catgrid label { font-weight: 500; min-width: 0 }
+.catgrid label small { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.catgrid input { padding: 0 8px; text-align: center }
+.total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; border-top: 1px solid var(--line); font-weight: 600 }
+.total b { font-family: var(--font-mono); font-weight: 500; font-size: 18px }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; display: flex; gap: 14px; align-items: center; z-index: 20; font-size: 14px; max-width: calc(100% - 32px) }
 .toast button { background: none; border: 0; color: inherit; font-weight: 600; text-decoration: underline }
 @media (min-width: 860px) { .toast { bottom: 24px } }
@@ -217,6 +226,16 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
 <script>
 (function () {
   const KEY = 'quaderno-v1';
+  const PHONE_CATS = [
+    ['Social', 'Instagram, TikTok, Facebook'],
+    ['Messaggi', 'WhatsApp, Telegram'],
+    ['Video e streaming', 'YouTube, Netflix, Twitch'],
+    ['Informazione', 'Notizie, Google, Chrome'],
+    ['Musica e podcast', 'Spotify'],
+    ['Giochi', ''],
+    ['Studio e lavoro', 'Email, documenti'],
+    ['Altro', 'Tutto il resto']
+  ];
   const CATS = ['Cibo', 'Trasporti', 'Svago', 'Casa', 'Salute', 'Abbigliamento', 'Altro'];
   const ICON = {
     oggi: '<path d="M4 5h16v15H4zM4 10h16M9 3v4M15 3v4"/>',
@@ -226,7 +245,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     lavoro: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M10 2.5h4"/>',
     riepilogo: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>'
   };
-  const TABS = [['oggi', 'Oggi'], ['obiettivi', 'Obiettivi'], ['spese', 'Spese'], ['telefono', 'Telefono'], ['lavoro', 'Lavoro'], ['riepilogo', 'Riepilogo']];
+  const TABS = [['oggi', 'Oggi'], ['obiettivi', 'Obiettivi'], ['spese', 'Spese'], ['telefono', 'Utilizzo telefono'], ['lavoro', 'Lavoro'], ['riepilogo', 'Riepilogo']];
   const svg = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const X = svg('<path d="M6 6l12 12M18 6L6 18"/>');
   const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -420,6 +439,16 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
   const spentOn = (day) => data.expenses.filter((e) => e.date === day).reduce((a, e) => a + e.amount, 0);
   const workOn = (day) => data.work.filter((w) => w.date === day).reduce((a, w) => a + w.min, 0);
   const phoneOn = (day) => (data.phone[day] ? data.phone[day].min : null);
+  // Minuti per categoria in un insieme di giorni. I giorni salvati prima delle categorie vanno in "Altro".
+  function phoneByCat(days) {
+    const out = {};
+    days.forEach((d) => {
+      const p = data.phone[d]; if (!p) return;
+      const cats = p.cats || { Altro: p.min };
+      Object.entries(cats).forEach(([k, v]) => { if (v) out[k] = (out[k] || 0) + v; });
+    });
+    return Object.entries(out).sort((a, b) => b[1] - a[1]);
+  }
   function weekGoalStats(day) {
     const days = weekDays(day);
     const all = data.goals.filter((g) => (g.type === 'day' && days.includes(g.date)) || (g.type === 'week' && g.date === days[0]));
@@ -484,7 +513,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       <div class="stats">
         <button class="stat" style="--c:var(--goal)" data-go="obiettivi"><span class="label">Obiettivi</span><span class="big">${doneToday}/${dg.length}</span><span class="sub">fatti oggi · settimana ${ws.pct}%</span></button>
         <button class="stat" style="--c:var(--spend)" data-go="spese"><span class="label">Spese</span><span class="big">${eur(spentOn(day))}</span><span class="sub">settimana ${eur(weekDays(day).reduce((a, d) => a + spentOn(d), 0))}</span></button>
-        <button class="stat" style="--c:var(--phone)" data-go="telefono"><span class="label">Telefono</span><span class="big">${p == null ? '—' : hm(p)}</span><span class="sub">${p == null ? 'da inserire' : (data.phone[day].unlocks ? data.phone[day].unlocks + ' sblocchi' : 'tempo di utilizzo')}</span></button>
+        <button class="stat" style="--c:var(--phone)" data-go="telefono"><span class="label">Utilizzo telefono</span><span class="big">${p == null ? '—' : hm(p)}</span><span class="sub">${p == null ? 'da inserire' : (data.phone[day].unlocks ? data.phone[day].unlocks + ' sblocchi' : 'tempo di utilizzo')}</span></button>
         <button class="stat" style="--c:var(--work)" data-go="lavoro"><span class="label">Lavoro</span><span class="big">${hm(workOn(day))}</span><span class="sub">settimana ${hm(weekDays(day).reduce((a, d) => a + workOn(d), 0))}</span></button>
       </div>
       ${timerBlock()}
@@ -562,21 +591,35 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       const days = weekDays(day);
       const known = days.map(phoneOn).filter((v) => v != null);
       const avg = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 0;
+      const cats = p ? (p.cats || { Altro: p.min }) : {};
+      const weekCats = phoneByCat(days);
+      const rows = PHONE_CATS.map(([name, ex], i) => {
+        const v = cats[name] || 0;
+        return `<label for="pc-${i}-h">${esc(name)}${ex ? `<small>${esc(ex)}</small>` : ''}</label>
+          <input id="pc-${i}-h" type="number" min="0" max="24" inputmode="numeric" aria-label="${esc(name)}, ore" value="${v ? Math.floor(v / 60) || '' : ''}" placeholder="0">
+          <input id="pc-${i}-m" type="number" min="0" max="59" inputmode="numeric" aria-label="${esc(name)}, minuti" value="${v ? v % 60 || '' : ''}" placeholder="0">`;
+      }).join('');
       return `
       <section class="panel">
         <h2>Tempo di utilizzo <span class="aside">${esc(fmtLong(day))}</span></h2>
-        <p class="empty">Copialo da Impostazioni › Benessere digitale e controllo genitori.</p>
-        <form class="form" id="f-phone">
-          <div class="field tiny"><label for="p-h">Ore</label><input id="p-h" type="number" min="0" max="24" inputmode="numeric" value="${p ? Math.floor(p.min / 60) : ''}" placeholder="0"></div>
-          <div class="field tiny"><label for="p-m">Minuti</label><input id="p-m" type="number" min="0" max="59" inputmode="numeric" value="${p ? p.min % 60 : ''}" placeholder="0"></div>
-          <div class="field tiny"><label for="p-u">Sblocchi</label><input id="p-u" type="number" min="0" inputmode="numeric" value="${p && p.unlocks ? p.unlocks : ''}" placeholder="facolt."></div>
-          <button class="btn">${p ? 'Aggiorna' : 'Salva'}</button>
-          ${p ? `<button type="button" class="btn ghost" data-del="phone" data-id="${day}">Cancella</button>` : ''}
+        <p class="empty">Apri Impostazioni › Benessere digitale e controllo genitori, guarda il tempo di ogni app e somma quelle della stessa categoria.</p>
+        <form id="f-phone" style="display:grid;gap:12px">
+          <div class="catgrid">
+            <span class="head">Categoria</span><span class="head">Ore</span><span class="head">Minuti</span>
+            ${rows}
+          </div>
+          <div class="total"><span>Totale</span><b id="p-tot">${hm(p ? p.min : 0)}</b></div>
+          <div class="form">
+            <div class="field tiny"><label for="p-u">Sblocchi</label><input id="p-u" type="number" min="0" inputmode="numeric" value="${p && p.unlocks ? p.unlocks : ''}" placeholder="facolt."></div>
+            <button class="btn">${p ? 'Aggiorna' : 'Salva'}</button>
+            ${p ? `<button type="button" class="btn ghost" data-del="phone" data-id="${day}">Cancella</button>` : ''}
+          </div>
         </form>
       </section>
       <section class="panel">
         <h2>Settimana <span class="aside">media ${known.length ? hm(avg) : '—'} al giorno</span></h2>
         ${chart(day, (d) => phoneOn(d), hm, '--phone')}
+        ${weekCats.length ? `<span class="label">Per categoria</span>${hbars(weekCats, hm, '--phone')}` : ''}
       </section>`;
     },
 
@@ -623,7 +666,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       <div class="stats">
         <div class="stat" style="--c:var(--goal)"><span class="label">Obiettivi</span><span class="big">${gPct}%</span><span class="sub">${gDone} di ${goals.length} completati</span></div>
         <div class="stat" style="--c:var(--spend)"><span class="label">Spese</span><span class="big">${eur(spend)}</span><span class="sub">${eur(spend / nDays)} al giorno</span></div>
-        <div class="stat" style="--c:var(--phone)"><span class="label">Telefono</span><span class="big">${phoneVals.length ? hm(phoneAvg) : '—'}</span><span class="sub">media al giorno</span></div>
+        <div class="stat" style="--c:var(--phone)"><span class="label">Utilizzo telefono</span><span class="big">${phoneVals.length ? hm(phoneAvg) : '—'}</span><span class="sub">media al giorno</span></div>
         <div class="stat" style="--c:var(--work)"><span class="label">Lavoro</span><span class="big">${hm(work)}</span><span class="sub">in ${workDays} ${workDays === 1 ? 'giorno' : 'giorni'}</span></div>
       </div>
       <section class="panel">
@@ -634,10 +677,11 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
         ${topExp ? `<dl class="facts"><div><dt>Spesa più alta</dt><dd>${eur(topExp.amount)}</dd></div><div><dt>Di cosa</dt><dd style="font-family:var(--font-body)">${esc(topExp.note || topExp.cat)} · ${dayName(topExp.date)}</dd></div></dl>` : ''}
       </section>
       <section class="panel">
-        <h2>Telefono <span class="aside">${phoneVals.length} ${phoneVals.length === 1 ? 'giorno inserito' : 'giorni inseriti'}</span></h2>
+        <h2>Utilizzo telefono <span class="aside">${phoneVals.length} ${phoneVals.length === 1 ? 'giorno inserito' : 'giorni inseriti'}</span></h2>
         <span class="label">${phoneVals.length ? vs(Math.round(phoneAvg), Math.round(phonePrevAvg), hm) : 'Nessun dato in questo mese'}</span>
         ${monthChart(day, phoneOn, hm, '--phone')}
         ${phoneVals.length ? `<dl class="facts"><div><dt>Media al giorno</dt><dd>${hm(phoneAvg)}</dd></div><div><dt>Giorno con più uso</dt><dd>${hm(phoneMax[1])} · ${dayName(phoneMax[0])}</dd></div><div><dt>Giorno con meno uso</dt><dd>${hm(phoneMin[1])} · ${dayName(phoneMin[0])}</dd></div></dl>` : ''}
+        ${phoneVals.length ? `<span class="label">Per categoria, media al giorno</span>${hbars(phoneByCat(days).map(([k, v]) => [k, v / phoneVals.length]), hm, '--phone')}` : ''}
       </section>
       <section class="panel">
         <h2>Lavoro sui progetti <span class="aside num">${hm(work)}</span></h2>
@@ -650,7 +694,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
         <h2>Ultimi 6 mesi</h2>
         <div class="trend">
           <div><span class="label">Spese</span>${sixChart(months, mSpend, (v) => Math.round(v) + '€', '--spend', sel)}</div>
-          <div><span class="label">Telefono, media al giorno</span>${sixChart(months, mPhone, hm, '--phone', sel)}</div>
+          <div><span class="label">Utilizzo telefono, media al giorno</span>${sixChart(months, mPhone, hm, '--phone', sel)}</div>
           <div><span class="label">Ore di lavoro</span>${sixChart(months, mWork, (v) => Math.round(v / 60) + 'h', '--work', sel)}</div>
         </div>
       </section>`;
@@ -784,6 +828,12 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     if (el.hasAttribute('data-clear-example')) { snapshot(); data = emptyData(); commit('Esempi cancellati', true); }
   });
 
+  document.addEventListener('input', (ev) => {
+    if (!ev.target.id || !ev.target.id.startsWith('pc-')) return;
+    let t = 0;
+    PHONE_CATS.forEach((_, i) => { t += num($(`pc-${i}-h`).value) * 60 + num($(`pc-${i}-m`).value); });
+    $('p-tot').textContent = hm(t);
+  });
   document.addEventListener('submit', (ev) => {
     ev.preventDefault();
     const f = ev.target.id;
@@ -797,9 +847,12 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       data.expenses.push({ id: uid(), date: st.day, amount, cat: $('e-cat').value, note: $('e-note').value.trim() });
       commit(`Spesa di ${eur(amount)} aggiunta`);
     } else if (f === 'f-phone') {
-      const min = Math.round(num($('p-h').value) * 60 + num($('p-m').value));
+      const cats = {};
+      PHONE_CATS.forEach(([name], i) => { const v = Math.round(num($(`pc-${i}-h`).value) * 60 + num($(`pc-${i}-m`).value)); if (v > 0) cats[name] = v; });
+      const min = Object.values(cats).reduce((a, b) => a + b, 0);
+      if (!min) { toast('Scrivi il tempo di almeno una categoria'); return; }
       const unlocks = Math.round(num($('p-u').value));
-      data.phone[st.day] = { min, unlocks: unlocks || null };
+      data.phone[st.day] = { min, unlocks: unlocks || null, cats };
       commit('Tempo di utilizzo salvato');
     } else if (f === 'f-work') {
       const min = Math.round(num($('w-h').value) * 60 + num($('w-m').value));
