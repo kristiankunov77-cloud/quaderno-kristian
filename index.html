@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2c4fd8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Quaderno di Kristian</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+html, body { margin: 0; min-height: 100% }
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px) }
+img { max-width: 100% }
+[hidden] { display: none !important }
+</style>
+<style>
+/* Layout: app a giornata. Barra della data in alto, sezioni a schede (in basso su telefono, a sinistra su computer). */
+:root {
+  --bg: #f3f4f7;
+  --surface: #ffffff;
+  --line: #dfe2ea;
+  --fg: #161a24;
+  --muted: #5e6578;
+  --accent: #2c4fd8;
+  --accent-soft: #e6ebfc;
+  --goal: #1f8a5b;
+  --spend: #b86e00;
+  --phone: #c23a62;
+  --work: #2c4fd8;
+  --danger: #c0352b;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 12px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f121a; --surface: #181c27; --line: #2a3040; --fg: #e8ebf2; --muted: #9aa1b4;
+  --accent: #7d97ff; --accent-soft: #232c4d; --goal: #4cc48d; --spend: #f0a43a; --phone: #f07397; --work: #7d97ff; --danger: #ff7b70;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f121a; --surface: #181c27; --line: #2a3040; --fg: #e8ebf2; --muted: #9aa1b4;
+  --accent: #7d97ff; --accent-soft: #232c4d; --goal: #4cc48d; --spend: #f0a43a; --phone: #f07397; --work: #7d97ff; --danger: #ff7b70;
+  color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5 }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg) }
+button, input, select { font: inherit; color: inherit }
+button { cursor: pointer }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums }
+
+.app { display: grid; grid-template-columns: 1fr; min-height: 100%; padding-bottom: 76px }
+.main { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px 24px; max-width: 760px; width: 100%; margin: 0 auto; display: grid; gap: 16px; align-content: start }
+
+/* Navigazione */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)) }
+.tab { background: none; border: 0; border-radius: 10px; padding: 6px 2px; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; color: var(--muted) }
+.tab svg { width: 22px; height: 22px }
+.tab[aria-current="page"] { color: var(--fg); background: var(--accent-soft) }
+.brand { display: none }
+@media (min-width: 860px) {
+  .app { grid-template-columns: 220px 1fr; padding-bottom: 0 }
+  .tabs { position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; border-top: 0; border-right: 1px solid var(--line);
+    grid-template-columns: 1fr; align-content: start; gap: 4px; padding: 20px 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)) }
+  .tab { grid-auto-flow: column; justify-content: start; gap: 10px; font-size: 15px; padding: 9px 12px }
+  .brand { display: block; font-family: var(--font-display); font-weight: 700; font-size: 20px; padding: 0 12px 16px; line-height: 1.15 }
+  .main { padding-block: 24px 40px }
+}
+
+/* Barra della data */
+.daybar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 4; background: var(--bg); display: flex; align-items: center; gap: 8px; padding-block: 6px }
+.daybar h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 5vw, 30px); margin: 0; flex: 1; min-width: 0; line-height: 1.1; text-wrap: balance }
+.daybar h1 small { display: block; font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--muted); letter-spacing: .02em }
+.iconbtn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center }
+.iconbtn svg { width: 18px; height: 18px }
+.todaybtn { height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13.5px; font-weight: 500 }
+
+/* Blocchi */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0 }
+.panel h2 { font-family: var(--font-display); font-weight: 700; font-size: 19px; margin: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; text-wrap: balance }
+.panel h2 .aside { font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--muted) }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600 }
+.empty { color: var(--muted); font-size: 14px; margin: 0 }
+
+.form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end }
+.field { display: grid; gap: 4px; flex: 1 1 120px; min-width: 0 }
+.field.wide { flex: 3 1 200px }
+.field.tiny { flex: 0 1 84px }
+.field label { font-size: 12.5px; color: var(--muted); font-weight: 500 }
+input, select { width: 100%; height: 42px; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 0 12px; min-width: 0 }
+.btn { height: 42px; border: 0; border-radius: 10px; padding: 0 16px; background: var(--fg); color: var(--surface); font-weight: 600; flex: 0 0 auto }
+.btn.ghost { background: var(--accent-soft); color: var(--fg) }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--bg) }
+.seg button { border: 0; background: none; border-radius: 7px; padding: 6px 12px; font-size: 13.5px; font-weight: 500; color: var(--muted) }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.08) }
+
+.list { list-style: none; margin: 0; padding: 0; display: grid }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); min-width: 0 }
+.row:first-child { border-top: 0 }
+.row .txt { flex: 1; min-width: 0; overflow-wrap: anywhere }
+.row .txt small { display: block; color: var(--muted); font-size: 13px }
+.row .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap }
+.del { border: 0; background: none; color: var(--muted); width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex: 0 0 auto }
+.del:hover { color: var(--danger); background: var(--bg) }
+.del svg { width: 16px; height: 16px }
+.check { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; flex: 0 0 auto; padding: 0 }
+.check svg { width: 14px; height: 14px; opacity: 0 }
+.check[aria-checked="true"] { background: var(--goal); border-color: var(--goal); color: #fff }
+.check[aria-checked="true"] svg { opacity: 1 }
+.done .txt { color: var(--muted); text-decoration: line-through }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); margin-right: 6px }
+
+/* Riepilogo */
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+@media (min-width: 620px) { .stats { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 4px; text-align: left; border-top: 3px solid var(--c) }
+.stat .big { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 24px; line-height: 1.1 }
+.stat .sub { font-size: 12.5px; color: var(--muted) }
+.progress { height: 8px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); overflow: hidden }
+.progress i { display: block; height: 100%; background: var(--goal); border-radius: 99px }
+
+/* Grafico 7 giorni */
+.chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; align-items: end; height: 150px; padding-top: 18px }
+.bar { display: grid; grid-template-rows: auto 1fr auto; height: 100%; gap: 4px; text-align: center; min-width: 0 }
+.bar .v { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden }
+.bar .track { display: flex; align-items: end; justify-content: center; border-bottom: 1px solid var(--line) }
+.bar .fill { width: 70%; max-width: 34px; border-radius: 6px 6px 0 0; background: var(--c); opacity: .85; min-height: 2px }
+.bar.sel .fill { opacity: 1 }
+.bar .d { font-size: 12px; color: var(--muted) }
+.bar.sel .d { color: var(--fg); font-weight: 600 }
+.hbars { display: grid; gap: 8px }
+.hbar { display: grid; grid-template-columns: minmax(0, 7.5em) 1fr auto; gap: 10px; align-items: center; font-size: 14px }
+.hbar .t { height: 10px; background: var(--bg); border-radius: 99px; overflow: hidden; border: 1px solid var(--line) }
+.hbar .t i { display: block; height: 100%; background: var(--c) }
+.hbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+.banner { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 14px; border-radius: var(--r); background: var(--accent-soft); font-size: 14px }
+.banner p { margin: 0; flex: 1 1 220px }
+.timer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft) }
+.timer .clock { font-family: var(--font-mono); font-size: 22px; font-variant-numeric: tabular-nums }
+.timer .txt { flex: 1 1 140px; min-width: 0 }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; display: flex; gap: 14px; align-items: center; z-index: 20; font-size: 14px; max-width: calc(100% - 32px) }
+.toast button { background: none; border: 0; color: inherit; font-weight: 600; text-decoration: underline }
+@media (min-width: 860px) { .toast { bottom: 24px } }
+@media (prefers-reduced-motion: no-preference) { .fill, .progress i, .hbar .t i { transition: height .3s, width .3s } }
+</style>
+<style>
+.login { min-height: 100vh; display: grid; place-items: center; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px }
+.login form { width: 100%; max-width: 360px; display: grid; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 24px }
+.login h1 { font-family: var(--font-display); font-weight: 700; font-size: 28px; margin: 0; line-height: 1.1 }
+.login p { margin: 0; color: var(--muted); font-size: 14px }
+.login .err { color: var(--danger) }
+.sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
+.sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--goal) }
+.sync[data-s="saving"]::before { background: var(--spend) }
+.sync[data-s="error"]::before { background: var(--danger) }
+.account { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13.5px }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; text-decoration: underline }
+</style>
+</head>
+<body>
+<section class="login" id="login" hidden>
+  <form id="f-login">
+    <h1>Quaderno di Kristian</h1>
+    <p>Accedi con l'account che hai creato su Supabase.</p>
+    <div class="field"><label for="l-email">Email</label><input id="l-email" type="email" required autocomplete="username"></div>
+    <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" required autocomplete="current-password"></div>
+    <button class="btn" id="l-btn">Accedi</button>
+    <p class="err" id="l-err" hidden></p>
+  </form>
+</section>
+
+
+<div class="app" id="app" hidden>
+  <nav class="tabs" id="tabs" aria-label="Sezioni">
+    <div class="brand">Quaderno<br>di Kristian</div>
+  </nav>
+  <main class="main" id="main">
+    <div class="daybar">
+      <button class="iconbtn" id="prev" aria-label="Giorno precedente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <h1 id="daytitle">Oggi</h1>
+      <button class="todaybtn" id="today" hidden>Oggi</button>
+      <button class="iconbtn" id="next" aria-label="Giorno successivo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+<div class="toast" id="toast" hidden><span id="toastmsg"></span><button id="undo">Annulla</button></div>
+
+<script src="supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+  const KEY = 'quaderno-v1';
+  const CATS = ['Cibo', 'Trasporti', 'Svago', 'Casa', 'Salute', 'Abbigliamento', 'Altro'];
+  const ICON = {
+    oggi: '<path d="M4 5h16v15H4zM4 10h16M9 3v4M15 3v4"/>',
+    obiettivi: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6"/>',
+    spese: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
+    telefono: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+    lavoro: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M10 2.5h4"/>'
+  };
+  const TABS = [['oggi', 'Oggi'], ['obiettivi', 'Obiettivi'], ['spese', 'Spese'], ['telefono', 'Telefono'], ['lavoro', 'Lavoro']];
+  const svg = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const X = svg('<path d="M6 6l12 12M18 6L6 18"/>');
+  const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  // ---------- date ----------
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const parse = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+  const monday = (s) => { const d = parse(s); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return iso(d); };
+  const weekDays = (s) => { const m = monday(s); return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(m, i)); };
+  const todayIso = () => iso(new Date());
+  const fmtLong = (s) => parse(s).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+  const fmtShortDay = (s) => parse(s).toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '');
+  const fmtDM = (s) => parse(s).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+
+  // ---------- formati ----------
+  const eur = (n) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+  const hm = (min) => { min = Math.round(min || 0); const h = Math.floor(min / 60), m = min % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`; };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+  // ---------- dati ----------
+  function emptyData() { return { goals: [], expenses: [], phone: {}, work: [], timer: null, example: false }; }
+  function sampleData() {
+    const t = todayIso(), y = addDays(t, -1), w = monday(t);
+    const d = emptyData();
+    d.example = true;
+    d.goals = [
+      { id: uid(), text: 'Allenamento 30 minuti', type: 'day', date: t, done: true },
+      { id: uid(), text: 'Leggere 20 pagine', type: 'day', date: t, done: false },
+      { id: uid(), text: 'Finire la prima versione dell\'app', type: 'week', date: w, done: false },
+      { id: uid(), text: 'Stare sotto le 3 ore di telefono al giorno', type: 'week', date: w, done: false }
+    ];
+    d.expenses = [
+      { id: uid(), date: t, amount: 1.4, cat: 'Cibo', note: 'Caffè' },
+      { id: uid(), date: t, amount: 12.9, cat: 'Cibo', note: 'Spesa' },
+      { id: uid(), date: y, amount: 35, cat: 'Trasporti', note: 'Benzina' },
+      { id: uid(), date: addDays(t, -2), amount: 18, cat: 'Svago', note: 'Cinema' }
+    ];
+    [212, 175, 240, 160, 198, 225, 150].forEach((m, i) => { d.phone[addDays(t, -i)] = { min: m, unlocks: 60 + i * 7 }; });
+    d.work = [
+      { id: uid(), date: t, project: 'App web personale', min: 95, note: 'Prototipo sezioni' },
+      { id: uid(), date: y, project: 'App web personale', min: 60, note: '' },
+      { id: uid(), date: y, project: 'Studio', min: 120, note: '' },
+      { id: uid(), date: addDays(t, -3), project: 'Studio', min: 80, note: '' }
+    ];
+    return d;
+  }
+  // Copia locale: l'app si apre subito anche senza rete, poi si allinea con Supabase.
+  function cacheLoad() {
+    try { const raw = localStorage.getItem(KEY); if (raw) return Object.assign(emptyData(), JSON.parse(raw)); } catch (e) {}
+    return emptyData();
+  }
+  function cacheSave() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+  function setDirty(v) { try { v ? localStorage.setItem(KEY + ':dirty', '1') : localStorage.removeItem(KEY + ':dirty'); } catch (e) {} }
+  function isDirty() { try { return localStorage.getItem(KEY + ':dirty') === '1'; } catch (e) { return false; } }
+
+  const cfg = window.QUADERNO_CONFIG || {};
+  const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+  let userId = null;
+  let data = cacheLoad();
+  let undoState = null;
+  let syncState = 'ok';
+  let pushTimer = null;
+
+  function setSync(s) {
+    syncState = s;
+    const el = document.getElementById('sync');
+    if (el) { el.dataset.s = s; el.textContent = { ok: 'Sincronizzato', saving: 'Salvataggio…', error: 'Non salvato online' }[s]; }
+  }
+  async function pull() {
+    if (!userId || isDirty()) return;
+    const { data: row, error } = await sb.from('quaderno').select('data').eq('user_id', userId).maybeSingle();
+    if (error) { setSync('error'); return; }
+    if (row) { data = Object.assign(emptyData(), row.data); cacheSave(); render(); }
+    setSync('ok');
+  }
+  async function push() {
+    if (!userId) return;
+    clearTimeout(pushTimer);
+    const { error } = await sb.from('quaderno').upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
+    if (error) { setSync('error'); return; }
+    setDirty(false); setSync('ok');
+  }
+  function save() {
+    cacheSave(); setDirty(true); setSync('saving');
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(push, 500);
+  }
+  function commit(msg) {
+    save(); render();
+    if (msg) toast(msg);
+  }
+  // Quando torni sull'app (es. dal telefono al computer) carica le modifiche fatte altrove.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') (isDirty() ? push() : pull()); });
+  window.addEventListener('online', () => (isDirty() ? push() : pull()));
+
+  function snapshot() { undoState = JSON.stringify(data); }
+
+  // ---------- stato vista ----------
+  const st = { tab: 'oggi', day: todayIso(), goalType: 'day' };
+  try { const t = localStorage.getItem(KEY + ':tab'); if (TABS.some((x) => x[0] === t)) st.tab = t; } catch (e) {}
+  if (TABS.some((x) => x[0] === location.hash.slice(1))) st.tab = location.hash.slice(1);
+
+  // ---------- calcoli ----------
+  const dayGoals = (day) => data.goals.filter((g) => g.type === 'day' && g.date === day);
+  const weekGoals = (day) => data.goals.filter((g) => g.type === 'week' && g.date === monday(day));
+  const spentOn = (day) => data.expenses.filter((e) => e.date === day).reduce((a, e) => a + e.amount, 0);
+  const workOn = (day) => data.work.filter((w) => w.date === day).reduce((a, w) => a + w.min, 0);
+  const phoneOn = (day) => (data.phone[day] ? data.phone[day].min : null);
+  function weekGoalStats(day) {
+    const days = weekDays(day);
+    const all = data.goals.filter((g) => (g.type === 'day' && days.includes(g.date)) || (g.type === 'week' && g.date === days[0]));
+    const done = all.filter((g) => g.done).length;
+    return { done, total: all.length, pct: all.length ? Math.round((done / all.length) * 100) : 0 };
+  }
+
+  // ---------- componenti ----------
+  function chart(day, valueFn, fmt, color) {
+    const days = weekDays(day);
+    const vals = days.map((d) => valueFn(d) || 0);
+    const max = Math.max(...vals, 1);
+    return `<div class="chart" style="--c:var(${color})" role="img" aria-label="Ultima settimana">${days.map((d, i) => `
+      <div class="bar${d === day ? ' sel' : ''}">
+        <span class="v">${vals[i] ? fmt(vals[i]) : ''}</span>
+        <div class="track"><div class="fill" style="height:${(vals[i] / max) * 100}%"></div></div>
+        <span class="d">${fmtShortDay(d)}</span>
+      </div>`).join('')}</div>`;
+  }
+  function hbars(entries, fmt, color) {
+    const max = Math.max(...entries.map((e) => e[1]), 1);
+    return `<div class="hbars" style="--c:var(${color})">${entries.map(([k, v]) => `
+      <div class="hbar"><span title="${esc(k)}">${esc(k)}</span><div class="t"><i style="width:${(v / max) * 100}%"></i></div><span class="num">${fmt(v)}</span></div>`).join('')}</div>`;
+  }
+  const delBtn = (kind, id) => `<button class="del" data-del="${kind}" data-id="${id}" aria-label="Elimina">${X}</button>`;
+  const weekLabel = (day) => { const d = weekDays(day); return `${fmtDM(d[0])} – ${fmtDM(d[6])}`; };
+
+  function goalRow(g) {
+    return `<li class="row${g.done ? ' done' : ''}">
+      <button class="check" role="checkbox" aria-checked="${g.done}" data-toggle="${g.id}" aria-label="Segna come fatto">${TICK}</button>
+      <span class="txt">${esc(g.text)}</span>${delBtn('goals', g.id)}</li>`;
+  }
+
+  // ---------- viste ----------
+  const views = {
+    oggi(day) {
+      const dg = dayGoals(day), wg = weekGoals(day), ws = weekGoalStats(day);
+      const p = phoneOn(day);
+      const doneToday = dg.filter((g) => g.done).length;
+      return `
+      <div class="stats">
+        <button class="stat" style="--c:var(--goal)" data-go="obiettivi"><span class="label">Obiettivi</span><span class="big">${doneToday}/${dg.length}</span><span class="sub">fatti oggi · settimana ${ws.pct}%</span></button>
+        <button class="stat" style="--c:var(--spend)" data-go="spese"><span class="label">Spese</span><span class="big">${eur(spentOn(day))}</span><span class="sub">settimana ${eur(weekDays(day).reduce((a, d) => a + spentOn(d), 0))}</span></button>
+        <button class="stat" style="--c:var(--phone)" data-go="telefono"><span class="label">Telefono</span><span class="big">${p == null ? '—' : hm(p)}</span><span class="sub">${p == null ? 'da inserire' : (data.phone[day].unlocks ? data.phone[day].unlocks + ' sblocchi' : 'tempo di utilizzo')}</span></button>
+        <button class="stat" style="--c:var(--work)" data-go="lavoro"><span class="label">Lavoro</span><span class="big">${hm(workOn(day))}</span><span class="sub">settimana ${hm(weekDays(day).reduce((a, d) => a + workOn(d), 0))}</span></button>
+      </div>
+      ${timerBlock()}
+      <section class="panel">
+        <h2>Obiettivi di oggi <span class="aside">${doneToday} di ${dg.length}</span></h2>
+        ${dg.length ? `<ul class="list">${dg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo per questo giorno. Aggiungilo nella sezione Obiettivi.</p>'}
+      </section>
+      <section class="panel">
+        <h2>Obiettivi della settimana <span class="aside">${weekLabel(day)}</span></h2>
+        ${wg.length ? `<ul class="list">${wg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo settimanale.</p>'}
+      </section>`;
+    },
+
+    obiettivi(day) {
+      const dg = dayGoals(day), wg = weekGoals(day), ws = weekGoalStats(day);
+      return `
+      <section class="panel">
+        <h2>Nuovo obiettivo</h2>
+        <div class="seg" role="group" aria-label="Tipo di obiettivo">
+          <button data-gtype="day" aria-pressed="${st.goalType === 'day'}">Per il giorno</button>
+          <button data-gtype="week" aria-pressed="${st.goalType === 'week'}">Per la settimana</button>
+        </div>
+        <form class="form" id="f-goal">
+          <div class="field wide"><label for="g-text">${st.goalType === 'day' ? 'Obiettivo per ' + esc(fmtLong(day)) : 'Obiettivo per la settimana ' + weekLabel(day)}</label>
+            <input id="g-text" required maxlength="140" placeholder="Es. Camminare 8.000 passi" autocomplete="off"></div>
+          <button class="btn">Aggiungi</button>
+        </form>
+      </section>
+      <section class="panel">
+        <h2>Settimana <span class="aside">${ws.done} di ${ws.total} completati</span></h2>
+        <div class="progress" aria-label="Completamento settimana ${ws.pct}%"><i style="width:${ws.pct}%"></i></div>
+        <span class="label">${ws.pct}% della settimana ${weekLabel(day)}</span>
+      </section>
+      <section class="panel">
+        <h2>Del giorno <span class="aside">${esc(fmtLong(day))}</span></h2>
+        ${dg.length ? `<ul class="list">${dg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo per questo giorno.</p>'}
+      </section>
+      <section class="panel">
+        <h2>Della settimana <span class="aside">${weekLabel(day)}</span></h2>
+        ${wg.length ? `<ul class="list">${wg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo per questa settimana.</p>'}
+      </section>`;
+    },
+
+    spese(day) {
+      const list = data.expenses.filter((e) => e.date === day);
+      const days = weekDays(day);
+      const byCat = {};
+      data.expenses.filter((e) => days.includes(e.date)).forEach((e) => { byCat[e.cat] = (byCat[e.cat] || 0) + e.amount; });
+      const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+      const weekTot = cats.reduce((a, c) => a + c[1], 0);
+      return `
+      <section class="panel">
+        <h2>Nuova spesa</h2>
+        <form class="form" id="f-exp">
+          <div class="field tiny"><label for="e-amt">Euro</label><input id="e-amt" required inputmode="decimal" placeholder="0,00" autocomplete="off"></div>
+          <div class="field"><label for="e-cat">Categoria</label><select id="e-cat">${CATS.map((c) => `<option>${c}</option>`).join('')}</select></div>
+          <div class="field wide"><label for="e-note">Nota</label><input id="e-note" maxlength="80" placeholder="Es. Pranzo" autocomplete="off"></div>
+          <button class="btn">Aggiungi</button>
+        </form>
+      </section>
+      <section class="panel">
+        <h2>Spese del giorno <span class="aside num">${eur(spentOn(day))}</span></h2>
+        ${list.length ? `<ul class="list">${list.map((e) => `<li class="row"><span class="txt"><span class="chip">${esc(e.cat)}</span>${esc(e.note || '')}</span><span class="val">${eur(e.amount)}</span>${delBtn('expenses', e.id)}</li>`).join('')}</ul>` : '<p class="empty">Nessuna spesa in questo giorno.</p>'}
+      </section>
+      <section class="panel">
+        <h2>Settimana <span class="aside num">${eur(weekTot)}</span></h2>
+        ${chart(day, spentOn, (v) => Math.round(v) + '€', '--spend')}
+        ${cats.length ? `<span class="label">Per categoria</span>${hbars(cats, eur, '--spend')}` : ''}
+      </section>`;
+    },
+
+    telefono(day) {
+      const p = data.phone[day];
+      const days = weekDays(day);
+      const known = days.map(phoneOn).filter((v) => v != null);
+      const avg = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 0;
+      return `
+      <section class="panel">
+        <h2>Tempo di utilizzo <span class="aside">${esc(fmtLong(day))}</span></h2>
+        <p class="empty">Copialo da Impostazioni › Benessere digitale e controllo genitori.</p>
+        <form class="form" id="f-phone">
+          <div class="field tiny"><label for="p-h">Ore</label><input id="p-h" type="number" min="0" max="24" inputmode="numeric" value="${p ? Math.floor(p.min / 60) : ''}" placeholder="0"></div>
+          <div class="field tiny"><label for="p-m">Minuti</label><input id="p-m" type="number" min="0" max="59" inputmode="numeric" value="${p ? p.min % 60 : ''}" placeholder="0"></div>
+          <div class="field tiny"><label for="p-u">Sblocchi</label><input id="p-u" type="number" min="0" inputmode="numeric" value="${p && p.unlocks ? p.unlocks : ''}" placeholder="facolt."></div>
+          <button class="btn">${p ? 'Aggiorna' : 'Salva'}</button>
+          ${p ? `<button type="button" class="btn ghost" data-del="phone" data-id="${day}">Cancella</button>` : ''}
+        </form>
+      </section>
+      <section class="panel">
+        <h2>Settimana <span class="aside">media ${known.length ? hm(avg) : '—'} al giorno</span></h2>
+        ${chart(day, (d) => phoneOn(d), hm, '--phone')}
+      </section>`;
+    },
+
+    lavoro(day) {
+      const list = data.work.filter((w) => w.date === day);
+      const days = weekDays(day);
+      const byProj = {};
+      data.work.filter((w) => days.includes(w.date)).forEach((w) => { byProj[w.project] = (byProj[w.project] || 0) + w.min; });
+      const projs = Object.entries(byProj).sort((a, b) => b[1] - a[1]);
+      const known = [...new Set(data.work.map((w) => w.project))];
+      return `
+      ${timerBlock(known)}
+      <section class="panel">
+        <h2>Aggiungi tempo a mano</h2>
+        <form class="form" id="f-work">
+          <div class="field wide"><label for="w-proj">Progetto</label><input id="w-proj" required list="projlist" maxlength="60" placeholder="Es. App web personale" autocomplete="off"></div>
+          <div class="field tiny"><label for="w-h">Ore</label><input id="w-h" type="number" min="0" max="24" inputmode="numeric" placeholder="0"></div>
+          <div class="field tiny"><label for="w-m">Minuti</label><input id="w-m" type="number" min="0" max="59" inputmode="numeric" placeholder="0"></div>
+          <div class="field wide"><label for="w-note">Cosa hai fatto</label><input id="w-note" maxlength="100" placeholder="Facoltativo" autocomplete="off"></div>
+          <button class="btn">Aggiungi</button>
+        </form>
+        <datalist id="projlist">${known.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>
+      </section>
+      <section class="panel">
+        <h2>Lavoro del giorno <span class="aside num">${hm(workOn(day))}</span></h2>
+        ${list.length ? `<ul class="list">${list.map((w) => `<li class="row"><span class="txt">${esc(w.project)}${w.note ? `<small>${esc(w.note)}</small>` : ''}</span><span class="val">${hm(w.min)}</span>${delBtn('work', w.id)}</li>`).join('')}</ul>` : '<p class="empty">Nessun tempo registrato in questo giorno.</p>'}
+      </section>
+      <section class="panel">
+        <h2>Settimana <span class="aside num">${hm(projs.reduce((a, p) => a + p[1], 0))}</span></h2>
+        ${chart(day, workOn, hm, '--work')}
+        ${projs.length ? `<span class="label">Per progetto</span>${hbars(projs, hm, '--work')}` : ''}
+      </section>`;
+    }
+  };
+
+  function timerBlock(known) {
+    const t = data.timer;
+    if (t) {
+      return `<div class="timer"><span class="txt"><span class="label">In corso</span><br>${esc(t.project)}</span>
+        <span class="clock" id="clock">${clockText()}</span><button class="btn" data-timer="stop">Ferma e salva</button></div>`;
+    }
+    if (!known) return '';
+    return `<section class="panel"><h2>Cronometro</h2>
+      <form class="form" id="f-timer">
+        <div class="field wide"><label for="t-proj">Su cosa lavori adesso?</label><input id="t-proj" required list="projlist" maxlength="60" placeholder="Es. App web personale" autocomplete="off"></div>
+        <button class="btn">Avvia</button>
+      </form></section>`;
+  }
+  function clockText() {
+    if (!data.timer) return '';
+    const s = Math.max(0, Math.floor((Date.now() - data.timer.start) / 1000));
+    return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map((n) => String(n).padStart(2, '0')).join(':');
+  }
+  setInterval(() => { const c = document.getElementById('clock'); if (c) c.textContent = clockText(); }, 1000);
+
+  // ---------- render ----------
+  const $ = (id) => document.getElementById(id);
+  function render() {
+    const tabs = $('tabs');
+    tabs.querySelectorAll('.tab').forEach((n) => n.remove());
+    TABS.forEach(([k, label]) => {
+      const b = document.createElement('button');
+      b.className = 'tab'; b.dataset.tab = k;
+      if (st.tab === k) b.setAttribute('aria-current', 'page');
+      b.innerHTML = svg(ICON[k]) + `<span>${label}</span>`;
+      tabs.appendChild(b);
+    });
+    const isToday = st.day === todayIso();
+    const rel = st.day === addDays(todayIso(), -1) ? 'Ieri' : isToday ? 'Oggi' : '';
+    const long = fmtLong(st.day);
+    $('daytitle').innerHTML = `<small>${rel ? rel : TABS.find((t) => t[0] === st.tab)[1]}</small>${esc(long.charAt(0).toUpperCase() + long.slice(1))}`;
+    $('today').hidden = isToday;
+    const banner = data.example ? `<div class="banner"><p>Stai guardando dati di esempio per vedere come funziona l'app.</p><button class="btn" data-clear-example>Cancella esempi e inizia</button></div>` : '';
+    const focusId = document.activeElement && document.activeElement.id;
+    const account = `<div class="account"><span class="sync" id="sync"></span><button class="linkbtn" data-logout>Esci</button></div>`;
+    $('view').innerHTML = `<div style="display:grid;gap:16px">${banner}${views[st.tab](st.day)}${account}</div>`;
+    setSync(syncState);
+    if (focusId && $(focusId) && focusId.startsWith('g-')) $(focusId).focus();
+  }
+
+  function toast(msg) {
+    $('toastmsg').textContent = msg;
+    $('toast').hidden = false;
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => { $('toast').hidden = true; }, 5000);
+  }
+
+  // ---------- eventi ----------
+  const num = (v) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
+  document.addEventListener('click', (ev) => {
+    const el = ev.target.closest('button');
+    if (!el) return;
+    if (el.dataset.tab || el.dataset.go) {
+      st.tab = el.dataset.tab || el.dataset.go;
+      try { localStorage.setItem(KEY + ':tab', st.tab); } catch (e) {}
+      render(); window.scrollTo(0, 0); return;
+    }
+    if (el.id === 'prev') { st.day = addDays(st.day, -1); render(); return; }
+    if (el.id === 'next') { st.day = addDays(st.day, 1); render(); return; }
+    if (el.id === 'today') { st.day = todayIso(); render(); return; }
+    if (el.id === 'undo') { if (undoState) { data = JSON.parse(undoState); undoState = null; save(); render(); } $('toast').hidden = true; return; }
+    if (el.dataset.gtype) { st.goalType = el.dataset.gtype; render(); return; }
+    if (el.dataset.toggle) { const g = data.goals.find((x) => x.id === el.dataset.toggle); if (g) { g.done = !g.done; commit(); } return; }
+    if (el.dataset.del) {
+      snapshot();
+      if (el.dataset.del === 'phone') delete data.phone[el.dataset.id];
+      else data[el.dataset.del] = data[el.dataset.del].filter((x) => x.id !== el.dataset.id);
+      commit('Eliminato'); return;
+    }
+    if (el.dataset.timer === 'stop') {
+      const t = data.timer, min = Math.max(1, Math.round((Date.now() - t.start) / 60000));
+      data.work.push({ id: uid(), date: iso(new Date(t.start)), project: t.project, min, note: '' });
+      data.timer = null; commit(`Salvati ${hm(min)} su ${t.project}`); return;
+    }
+    if (el.hasAttribute('data-logout')) { (isDirty() ? push() : Promise.resolve()).then(() => sb.auth.signOut()); return; }
+    if (el.hasAttribute('data-clear-example')) { snapshot(); data = emptyData(); commit('Esempi cancellati'); }
+  });
+
+  document.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const f = ev.target.id;
+    if (f === 'f-goal') {
+      const text = $('g-text').value.trim(); if (!text) return;
+      data.goals.push({ id: uid(), text, type: st.goalType, date: st.goalType === 'day' ? st.day : monday(st.day), done: false });
+      commit('Obiettivo aggiunto'); $('g-text').focus();
+    } else if (f === 'f-exp') {
+      const amount = Math.round(num($('e-amt').value) * 100) / 100;
+      if (amount <= 0) { $('e-amt').setCustomValidity('Scrivi un importo maggiore di zero'); $('e-amt').reportValidity(); $('e-amt').setCustomValidity(''); return; }
+      data.expenses.push({ id: uid(), date: st.day, amount, cat: $('e-cat').value, note: $('e-note').value.trim() });
+      commit(`Spesa di ${eur(amount)} aggiunta`);
+    } else if (f === 'f-phone') {
+      const min = Math.round(num($('p-h').value) * 60 + num($('p-m').value));
+      const unlocks = Math.round(num($('p-u').value));
+      data.phone[st.day] = { min, unlocks: unlocks || null };
+      commit('Tempo di utilizzo salvato');
+    } else if (f === 'f-work') {
+      const min = Math.round(num($('w-h').value) * 60 + num($('w-m').value));
+      if (min <= 0) { $('w-m').setCustomValidity('Scrivi quanto tempo hai lavorato'); $('w-m').reportValidity(); $('w-m').setCustomValidity(''); return; }
+      data.work.push({ id: uid(), date: st.day, project: $('w-proj').value.trim(), min, note: $('w-note').value.trim() });
+      commit(`Aggiunti ${hm(min)}`);
+    } else if (f === 'f-timer') {
+      data.timer = { start: Date.now(), project: $('t-proj').value.trim() };
+      commit('Cronometro avviato');
+    }
+  });
+
+  document.getElementById('f-login').addEventListener('submit', async (ev) => {
+    ev.preventDefault(); ev.stopPropagation();
+    const err = $('l-err'); err.hidden = true; $('l-btn').disabled = true;
+    const { error } = await sb.auth.signInWithPassword({ email: $('l-email').value.trim(), password: $('l-pass').value });
+    $('l-btn').disabled = false;
+    if (error) { err.textContent = 'Email o password non corrette.'; err.hidden = false; }
+  });
+
+  function showApp(session) {
+    const was = userId;
+    userId = session ? session.user.id : null;
+    $('login').hidden = !!session;
+    $('app').hidden = !session;
+    if (!session) {
+      if (was) { data = emptyData(); try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + ':dirty'); } catch (e) {} }
+      return;
+    }
+    if (was === userId) return;
+    render();
+    isDirty() ? push() : pull();
+  }
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  sb.auth.onAuthStateChange((_event, session) => setTimeout(() => showApp(session), 0));
+})();
+</script>
+</body>
+</html>
