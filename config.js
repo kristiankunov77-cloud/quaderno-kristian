@@ -4,5 +4,7 @@
 // Non mettere MAI qui la chiave "secret" o "service_role".
 window.QUADERNO_CONFIG = {
   supabaseUrl: 'https://ebhaxdtdttfhsvrjjvgy.supabase.co',
-  supabaseKey: 'sb_publishable_bUN7OjFiuPBG_ndSAhkz6Q_a0JGVcTU'
+  supabaseKey: 'sb_publishable_bUN7OjFiuPBG_ndSAhkz6Q_a0JGVcTU',
+  // Chiave pubblica per le notifiche (quella privata sta solo nei Secrets di Supabase).
+  vapidPublicKey: 'BOfeuXEfBhmh8CKVDYv7rAEZo2iuC5RvPCNE7mkXcHSywEXLriMT4VIGd4VSh8TYKM55Va5ZZOPBaRmAy0UdX70'
 };

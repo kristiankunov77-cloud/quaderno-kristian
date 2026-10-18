@@ -322,7 +322,76 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     if (msg) toast(msg);
   }
   // Quando torni sull'app (es. dal telefono al computer) carica le modifiche fatte altrove.
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') (isDirty() ? push() : pull()); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { isDirty() ? push() : pull(); markOpened(); } });
+
+  // ---------- promemoria serale ----------
+  const rem = { attivo: false, ora: 21, device: false, on: false };
+  const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const b64u = (s) => { const b = atob((s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+  // Segna che oggi hai aperto l'app: la notifica serale parte solo se questo non è successo.
+  function markOpened() { if (userId) sb.from('promemoria').upsert({ user_id: userId, ultimo_accesso: todayIso() }).then(() => {}, () => {}); }
+  async function loadReminder() {
+    try {
+      const { data: row } = await sb.from('promemoria').select('attivo, ora').eq('user_id', userId).maybeSingle();
+      if (row) { rem.attivo = !!row.attivo; rem.ora = row.ora || 21; }
+      if (pushOk()) { const reg = await navigator.serviceWorker.getRegistration(); rem.device = !!(reg && await reg.pushManager.getSubscription()); }
+    } catch (e) {}
+    rem.on = rem.attivo && rem.device;
+    if (st.tab === 'oggi') render();
+  }
+  async function remOn() {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { toast('Senza il permesso di Chrome non posso mandarti notifiche'); render(); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(cfg.vapidPublicKey) });
+      const j = sub.toJSON();
+      let r = await sb.from('dispositivi').upsert({ endpoint: j.endpoint, user_id: userId, subscription: j });
+      if (r.error) throw r.error;
+      r = await sb.from('promemoria').upsert({ user_id: userId, attivo: true, ora: rem.ora });
+      if (r.error) throw r.error;
+      rem.attivo = rem.device = rem.on = true;
+      render(); toast(`Promemoria attivato per le ${rem.ora}:00`);
+    } catch (e) { toast('Non sono riuscito ad attivarlo: ' + (e.message || e)); }
+  }
+  async function remOff() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg && await reg.pushManager.getSubscription();
+      if (sub) { await sb.from('dispositivi').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+    } catch (e) {}
+    rem.device = rem.on = false;
+    render(); toast('Promemoria disattivato su questo dispositivo');
+  }
+  async function remTest() {
+    toast('Invio la notifica di prova…');
+    const { data: res, error } = await sb.functions.invoke('promemoria', { body: { prova: true } });
+    if (error) toast('La prova non è partita. Controlla che la funzione "promemoria" sia pubblicata su Supabase.');
+    else if (!res.inviate) toast('Nessuna notifica inviata' + (res.errori && res.errori.length ? ': ' + res.errori[0] : ''));
+    else toast('Notifica di prova inviata');
+  }
+  async function remHour(h) {
+    rem.ora = h;
+    const r = await sb.from('promemoria').upsert({ user_id: userId, ora: h });
+    toast(r.error ? 'Ora non salvata, riprova' : `Promemoria alle ${h}:00`);
+    render();
+  }
+  function reminderPanel() {
+    let body;
+    if (!pushOk()) body = '<p class="empty">Qui le notifiche non sono disponibili. Sul telefono apri il Quaderno dall\'icona installata con Chrome.</p>';
+    else if (Notification.permission === 'denied') body = '<p class="empty">Le notifiche sono bloccate. Riattivale in Chrome da Impostazioni sito › Notifiche, poi torna qui.</p>';
+    else {
+      const hours = [17, 18, 19, 20, 21, 22, 23].map((h) => `<option value="${h}"${h === rem.ora ? ' selected' : ''}>${h}:00</option>`).join('');
+      body = `<p class="empty">${rem.on ? `Attivo su questo dispositivo. Se alle ${rem.ora}:00 non hai ancora aperto il Quaderno, ti arriva una notifica per niente gentile.` : 'Una notifica la sera, se quel giorno non hai ancora aperto il Quaderno.'}</p>
+        <div class="form">
+          <div class="field" style="flex:0 1 120px"><label for="r-ora">Ora</label><select id="r-ora">${hours}</select></div>
+          ${rem.on ? '<button class="btn ghost" data-rem="test">Mandami una prova</button><button class="btn ghost" data-rem="off">Disattiva</button>' : '<button class="btn" data-rem="on">Attiva</button>'}
+        </div>`;
+    }
+    return `<section class="panel"><h2>Promemoria serale</h2>${body}</section>`;
+  }
+  document.addEventListener('change', (ev) => { if (ev.target.id === 'r-ora') remHour(Number(ev.target.value)); });
+
   window.addEventListener('online', () => (isDirty() ? push() : pull()));
 
   function snapshot() { undoState = JSON.stringify(data); }
@@ -413,7 +482,8 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       <section class="panel">
         <h2>Obiettivi della settimana <span class="aside">${weekLabel(day)}</span></h2>
         ${wg.length ? `<ul class="list">${wg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo settimanale.</p>'}
-      </section>`;
+      </section>
+      ${reminderPanel()}`;
     },
 
     obiettivi(day) {
@@ -692,6 +762,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       data.work.push({ id: uid(), date: iso(new Date(t.start)), project: t.project, min, note: '' });
       data.timer = null; commit(`Salvati ${hm(min)} su ${t.project}`); return;
     }
+    if (el.dataset.rem) { ({ on: remOn, off: remOff, test: remTest })[el.dataset.rem](); return; }
     if (el.hasAttribute('data-logout')) { (isDirty() ? push() : Promise.resolve()).then(() => sb.auth.signOut()); return; }
     if (el.hasAttribute('data-clear-example')) { snapshot(); data = emptyData(); commit('Esempi cancellati'); }
   });
@@ -744,6 +815,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     if (was === userId) return;
     render();
     isDirty() ? push() : pull();
+    markOpened(); loadReminder();
   }
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
   sb.auth.onAuthStateChange((_event, session) => setTimeout(() => showApp(session), 0));
