@@ -59,7 +59,7 @@ button { cursor: pointer }
 
 /* Navigazione */
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: grid; grid-template-columns: repeat(7, 1fr);
   padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)) }
 .tab { background: none; border: 0; border-radius: 10px; padding: 6px 2px; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; color: var(--muted) }
 .tab svg { width: 22px; height: 22px }
@@ -173,6 +173,8 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
 .catgrid input { padding: 0 8px; text-align: center }
 .total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; border-top: 1px solid var(--line); font-weight: 600 }
 .total b { font-family: var(--font-mono); font-weight: 500; font-size: 18px }
+.idea .txt small { margin-top: 2px }
+.linkbtn.small { font-size: 13px; padding: 4px 0 0; display: block }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; display: flex; gap: 14px; align-items: center; z-index: 20; font-size: 14px; max-width: calc(100% - 32px) }
 .toast button { background: none; border: 0; color: inherit; font-weight: 600; text-decoration: underline }
 @media (min-width: 860px) { .toast { bottom: 24px } }
@@ -243,9 +245,10 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     spese: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
     telefono: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
     lavoro: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M10 2.5h4"/>',
-    riepilogo: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>'
+    riepilogo: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>',
+    idee: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>'
   };
-  const TABS = [['oggi', 'Oggi'], ['obiettivi', 'Obiettivi'], ['spese', 'Spese'], ['telefono', 'Utilizzo telefono'], ['lavoro', 'Lavoro'], ['riepilogo', 'Riepilogo']];
+  const TABS = [['oggi', 'Oggi'], ['obiettivi', 'Obiettivi'], ['idee', 'Idee'], ['spese', 'Spese'], ['telefono', 'Utilizzo telefono'], ['lavoro', 'Lavoro'], ['riepilogo', 'Riepilogo']];
   const svg = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const X = svg('<path d="M6 6l12 12M18 6L6 18"/>');
   const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -274,7 +277,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
   const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
   // ---------- dati ----------
-  function emptyData() { return { goals: [], expenses: [], phone: {}, work: [], timer: null, example: false }; }
+  function emptyData() { return { goals: [], ideas: [], expenses: [], phone: {}, work: [], timer: null, example: false }; }
   function sampleData() {
     const t = todayIso(), y = addDays(t, -1), w = monday(t);
     const d = emptyData();
@@ -623,6 +626,30 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       </section>`;
     },
 
+    idee(day) {
+      const open = data.ideas.filter((i) => !i.done).sort((a, b) => b.created.localeCompare(a.created));
+      const done = data.ideas.filter((i) => i.done).sort((a, b) => (b.doneOn || '').localeCompare(a.doneOn || ''));
+      const row = (i) => `<li class="row idea${i.done ? ' done' : ''}">
+        <button class="check" role="checkbox" aria-checked="${!!i.done}" data-idea="${i.id}" aria-label="Segna come realizzata">${TICK}</button>
+        <span class="txt">${esc(i.text)}${i.note ? `<small>${esc(i.note)}</small>` : ''}<small>${i.done && i.doneOn ? 'Realizzata il ' + fmtDM(i.doneOn) : 'Scritta il ' + fmtDM(i.created)}</small>${i.done ? '' : `<button class="linkbtn small" data-idea-goal="${i.id}">Fai diventare obiettivo della settimana</button>`}</span>
+        ${delBtn('ideas', i.id)}</li>`;
+      return `
+      <section class="panel">
+        <h2>Nuova idea</h2>
+        <form class="form" id="f-idea">
+          <div class="field wide"><label for="i-text">Idea</label><input id="i-text" required maxlength="160" placeholder="Es. Imparare a suonare la chitarra" autocomplete="off"></div>
+          <div class="field wide"><label for="i-note">Dettagli</label><input id="i-note" maxlength="300" placeholder="Facoltativo" autocomplete="off"></div>
+          <button class="btn">Aggiungi</button>
+        </form>
+      </section>
+      <section class="panel">
+        <h2>Da realizzare <span class="aside">${open.length}</span></h2>
+        <p class="empty">Nessuna data, nessuna fretta. Quando sei pronto, trasforma un'idea in un obiettivo della settimana.</p>
+        ${open.length ? `<ul class="list">${open.map(row).join('')}</ul>` : '<p class="empty">Ancora nessuna idea. Scrivi la prima qui sopra.</p>'}
+      </section>
+      ${done.length ? `<section class="panel"><h2>Realizzate <span class="aside">${done.length}</span></h2><ul class="list">${done.map(row).join('')}</ul></section>` : ''}`;
+    },
+
     riepilogo(day) {
       const days = monthDays(day), t = todayIso();
       const prev = addMonths(day, -1), prevDays = monthDays(prev);
@@ -767,9 +794,12 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     const monthly = st.tab === 'riepilogo';
     const isToday = monthly ? monthStart(st.day) === monthStart(todayIso()) : st.day === todayIso();
     const rel = st.day === addDays(todayIso(), -1) ? 'Ieri' : st.day === todayIso() ? 'Oggi' : '';
-    if (monthly) $('daytitle').innerHTML = `<small>Riepilogo del mese</small>${esc(cap(fmtMonth(st.day)))}`;
+    const undated = st.tab === 'idee';
+    ['prev', 'next'].forEach((id) => { $(id).hidden = undated; });
+    if (undated) $('daytitle').innerHTML = '<small>Senza date</small>Le mie idee';
+    else if (monthly) $('daytitle').innerHTML = `<small>Riepilogo del mese</small>${esc(cap(fmtMonth(st.day)))}`;
     else $('daytitle').innerHTML = `<small>${rel ? rel : TABS.find((t) => t[0] === st.tab)[1]}</small>${esc(cap(fmtLong(st.day)))}`;
-    $('today').hidden = isToday;
+    $('today').hidden = isToday || undated;
     $('today').textContent = monthly ? 'Questo mese' : 'Oggi';
     $('prev').setAttribute('aria-label', monthly ? 'Mese precedente' : 'Giorno precedente');
     $('next').setAttribute('aria-label', monthly ? 'Mese successivo' : 'Giorno successivo');
@@ -810,6 +840,16 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     if (el.id === 'today') { st.day = todayIso(); render(); return; }
     if (el.id === 'undo') { if (undoState) { data = JSON.parse(undoState); undoState = null; save(); render(); } $('toast').hidden = true; return; }
     if (el.dataset.gtype) { st.goalType = el.dataset.gtype; render(); return; }
+    if (el.dataset.idea) {
+      const i = data.ideas.find((x) => x.id === el.dataset.idea);
+      if (i) { i.done = !i.done; i.doneOn = i.done ? todayIso() : null; commit(i.done ? 'Idea realizzata, grande!' : 'Idea riportata tra quelle da realizzare'); }
+      return;
+    }
+    if (el.dataset.ideaGoal) {
+      const i = data.ideas.find((x) => x.id === el.dataset.ideaGoal);
+      if (i) { data.goals.push({ id: uid(), text: i.text, type: 'week', date: monday(todayIso()), done: false }); commit('Aggiunta agli obiettivi di questa settimana'); }
+      return;
+    }
     if (el.dataset.toggle) { const g = data.goals.find((x) => x.id === el.dataset.toggle); if (g) { g.done = !g.done; commit(); } return; }
     if (el.dataset.del) {
       snapshot();
@@ -859,6 +899,10 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       if (min <= 0) { $('w-m').setCustomValidity('Scrivi quanto tempo hai lavorato'); $('w-m').reportValidity(); $('w-m').setCustomValidity(''); return; }
       data.work.push({ id: uid(), date: st.day, project: $('w-proj').value.trim(), min, note: $('w-note').value.trim() });
       commit(`Aggiunti ${hm(min)}`);
+    } else if (f === 'f-idea') {
+      const text = $('i-text').value.trim(); if (!text) return;
+      data.ideas.push({ id: uid(), text, note: $('i-note').value.trim(), created: todayIso(), done: false });
+      commit('Idea salvata'); $('i-text').focus();
     } else if (f === 'f-timer') {
       data.timer = { start: Date.now(), project: $('t-proj').value.trim() };
       commit('Cronometro avviato');
