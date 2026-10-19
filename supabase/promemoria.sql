@@ -34,7 +34,7 @@ create policy "proprietario" on public.dispositivi
   for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 
 -- Ogni ora chiama la funzione "promemoria", che manda la notifica solo negli orari scelti
--- e solo se quel giorno non hai ancora aperto l'app.
+-- (sempre, anche se quel giorno hai già aperto l'app).
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
 

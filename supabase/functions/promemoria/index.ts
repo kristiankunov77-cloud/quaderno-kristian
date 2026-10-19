@@ -1,6 +1,6 @@
 // Edge Function "promemoria": manda la notifica serale del Quaderno.
 // - Chiamata ogni ora dal cron (con CRON_SECRET): se quest'ora è tra quelle scelte
-//   e oggi non hai ancora aperto l'app, manda una frase più o meno cattiva.
+//   manda una frase più o meno cattiva, diversa se oggi hai già aperto l'app.
 // - Chiamata dall'app con il tuo login: manda subito una notifica di prova.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
@@ -16,6 +16,11 @@ webpush.setVapidDetails(APP_URL, Deno.env.get("VAPID_PUBLIC_KEY")!, Deno.env.get
 const LIVELLI = [
   {
     titoli: ["Ciao Kristian", "Piccolo promemoria", "Quaderno di Kristian"],
+    giaAperto: [
+      "Bravo, oggi il Quaderno l'hai già aperto. Come vanno gli obiettivi di oggi?",
+      "Pausa pranzo: segna le spese di stamattina, così stasera sei già a posto.",
+      "Mezza giornata andata. Quanti obiettivi hai già spuntato?",
+    ],
     frasi: [
       "Pausa pranzo? Due minuti per segnare cosa hai fatto stamattina.",
       "Quando hai un attimo, apri il Quaderno e scrivi com'è andata finora.",
@@ -26,6 +31,11 @@ const LIVELLI = [
   },
   {
     titoli: ["Ehi Kristian!", "Sveglia!", "Oh, Kristian"],
+    giaAperto: [
+      "Hai aperto il Quaderno, ok. Ma gli obiettivi li stai facendo davvero?",
+      "Sono le {ora}: ore di lavoro e spese del pomeriggio, segnale adesso.",
+      "Aprire l'app non basta, campione. Spunta qualche obiettivo.",
+    ],
     frasi: [
       "Sono le {ora} e il Quaderno è ancora vuoto. Non farmi arrabbiare.",
       "Le spese non si scrivono da sole, campione.",
@@ -37,6 +47,11 @@ const LIVELLI = [
   },
   {
     titoli: ["Ultima chiamata", "KRISTIAN!", "Adesso basta"],
+    giaAperto: [
+      "Sono le {ora}. La giornata sta finendo: hai scritto tutto o no, cazzo?",
+      "Ultimo giro: obiettivi, spese, telefono, lavoro. Controlla che ci sia tutto.",
+      "Hai aperto l'app, bene. Ora finisci di scrivere la giornata, poi puoi riposare.",
+    ],
     frasi: [
       "Sono le {ora} e il Quaderno è ancora vuoto. Cosa cazzo stai facendo? Aprilo.",
       "Dai cazzo, sono due minuti: scrivi la tua giornata.",
@@ -82,12 +97,18 @@ Deno.serve(async (req) => {
   let utenti: string[];
   let prova = false;
   const livelloDi = new Map<string, number>();
+  const giaApertoOggi = new Set<string>();
   if (CRON_SECRET && token === CRON_SECRET) {
     const { data, error } = await db.from("promemoria").select("user_id, ultimo_accesso, ore").eq("attivo", true).contains("ore", [ora]);
     if (error) return json({ errore: error.message }, 500);
-    const daAvvisare = (data ?? []).filter((r) => r.ultimo_accesso !== oggi);
+    // La notifica parte a ogni orario scelto, anche se oggi hai già aperto l'app:
+    // cambia solo la frase.
+    const daAvvisare = data ?? [];
     utenti = daAvvisare.map((r) => r.user_id);
-    for (const r of daAvvisare) livelloDi.set(r.user_id, livello(r.ore, ora));
+    for (const r of daAvvisare) {
+      livelloDi.set(r.user_id, livello(r.ore, ora));
+      if (r.ultimo_accesso === oggi) giaApertoOggi.add(r.user_id);
+    }
   } else {
     const { data: { user } } = await db.auth.getUser(token);
     if (!user) return json({ errore: "Non autorizzato" }, 401);
@@ -106,7 +127,8 @@ Deno.serve(async (req) => {
       ? { title: "Prova riuscita!", body: "Le notifiche funzionano. Se un giorno non apri l'app, ti scrivo negli orari scelti, sempre più arrabbiato." }
       : (() => {
         const l = LIVELLI[livelloDi.get(d.user_id) ?? 2];
-        return { title: pick(l.titoli), body: pick(l.frasi).replace("{ora}", `${ora}`) };
+        const frasi = giaApertoOggi.has(d.user_id) ? l.giaAperto : l.frasi;
+        return { title: pick(l.titoli), body: pick(frasi).replace("{ora}", `${ora}`) };
       })();
     try {
       await webpush.sendNotification(d.subscription, JSON.stringify({ ...msg, url: APP_URL }), { TTL: 3600 });
