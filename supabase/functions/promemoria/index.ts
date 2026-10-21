@@ -1,6 +1,8 @@
 // Edge Function "promemoria": manda la notifica serale del Quaderno.
 // - Chiamata ogni ora dal cron (con CRON_SECRET): se quest'ora è tra quelle scelte
 //   manda una frase più o meno cattiva, diversa se oggi hai già aperto l'app.
+//   Al primo orario della giornata manda anche un insulto per gli obiettivi di ieri
+//   rimasti senza spunta (né "fatto" né "non fatto").
 // - Chiamata dall'app con il tuo login: manda subito una notifica di prova.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
@@ -63,6 +65,17 @@ const LIVELLI = [
   },
 ];
 
+const INSULTI = [
+  "Ieri non hai spuntato {n}. Che cazzo hai fatto tutto il giorno? -{p} punti.",
+  "{n}: niente spunta, quindi non l'hai fatto. Pigro di merda. -{p} punti.",
+  "Te l'eri scritto da solo: {n}. E non l'hai fatto. Coglione. -{p} punti.",
+  "Ieri: {n}. Risultato: zero. Campione del mondo di cazzeggio. -{p} punti.",
+  "Ma porca puttana Kristian, {n} e nemmeno la spunta. -{p} punti, te li sei meritati.",
+  "Anche un sasso avrebbe fatto {n}. Tu no. -{p} punti.",
+];
+const TITOLI_INSULTO = ["Obiettivi di ieri: bocciato", "Vergognati", "Kristian, che figura di merda"];
+const PUNTI_NON_FATTO = 5;
+
 // Livello in base alla posizione dell'orario tra quelli scelti: primo 0, ultimo 2.
 function livello(ore: number[], ora: number) {
   const ordinate = [...ore].sort((a, b) => a - b);
@@ -85,19 +98,38 @@ function adessoARoma() {
       timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23",
     }).formatToParts(new Date()).map((x) => [x.type, x.value]),
   );
-  return { oggi: `${p.year}-${p.month}-${p.day}`, ora: Number(p.hour) };
+  const oggi = `${p.year}-${p.month}-${p.day}`;
+  const ieri = new Date(Date.parse(oggi + "T12:00:00Z") - 86400000).toISOString().slice(0, 10);
+  return { oggi, ieri, ora: Number(p.hour) };
+}
+
+type Obiettivo = { text?: string; type?: string; date?: string; done?: boolean; failed?: boolean; insultato?: boolean };
+type Messaggio = { title: string; body: string; tag?: string };
+
+// Obiettivi del giorno di ieri senza spunta. Se li hai già visti nell'app (insultato) non li ripete.
+function insultoDiIeri(goals: Obiettivo[], ieri: string): Messaggio | null {
+  const mancati = goals.filter((g) => g.type === "day" && g.date === ieri && !g.done && !g.failed && !g.insultato);
+  if (!mancati.length) return null;
+  const nomi = mancati.map((g) => `"${g.text ?? ""}"`);
+  const n = nomi.length === 1 ? nomi[0] : `${nomi.slice(0, -1).join(", ")} e ${nomi[nomi.length - 1]}`;
+  return {
+    title: pick(TITOLI_INSULTO),
+    body: pick(INSULTI).replace("{n}", n).replace("{p}", `${mancati.length * PUNTI_NON_FATTO}`),
+    tag: "insulto",
+  };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
-  const { oggi, ora } = adessoARoma();
+  const { oggi, ieri, ora } = adessoARoma();
 
   let utenti: string[];
   let prova = false;
   const livelloDi = new Map<string, number>();
   const giaApertoOggi = new Set<string>();
+  const insultoDi = new Map<string, Messaggio>();
   if (CRON_SECRET && token === CRON_SECRET) {
     const { data, error } = await db.from("promemoria").select("user_id, ultimo_accesso, ore").eq("attivo", true).contains("ore", [ora]);
     if (error) return json({ errore: error.message }, 500);
@@ -108,6 +140,14 @@ Deno.serve(async (req) => {
     for (const r of daAvvisare) {
       livelloDi.set(r.user_id, livello(r.ore, ora));
       if (r.ultimo_accesso === oggi) giaApertoOggi.add(r.user_id);
+    }
+    const primoOrario = daAvvisare.filter((r) => Math.min(...r.ore) === ora).map((r) => r.user_id);
+    if (primoOrario.length) {
+      const { data: quaderni } = await db.from("quaderno").select("user_id, data").in("user_id", primoOrario);
+      for (const q of quaderni ?? []) {
+        const m = insultoDiIeri((q.data?.goals ?? []) as Obiettivo[], ieri);
+        if (m) insultoDi.set(q.user_id, m);
+      }
     }
   } else {
     const { data: { user } } = await db.auth.getUser(token);
@@ -122,14 +162,7 @@ Deno.serve(async (req) => {
 
   let inviate = 0;
   const errori: string[] = [];
-  for (const d of disp ?? []) {
-    const msg = prova
-      ? { title: "Prova riuscita!", body: "Le notifiche funzionano. Se un giorno non apri l'app, ti scrivo negli orari scelti, sempre più arrabbiato." }
-      : (() => {
-        const l = LIVELLI[livelloDi.get(d.user_id) ?? 2];
-        const frasi = giaApertoOggi.has(d.user_id) ? l.giaAperto : l.frasi;
-        return { title: pick(l.titoli), body: pick(frasi).replace("{ora}", `${ora}`) };
-      })();
+  const invia = async (d: { endpoint: string; subscription: webpush.PushSubscription }, msg: Messaggio) => {
     try {
       await webpush.sendNotification(d.subscription, JSON.stringify({ ...msg, url: APP_URL }), { TTL: 3600 });
       inviate++;
@@ -139,6 +172,18 @@ Deno.serve(async (req) => {
       if (code === 404 || code === 410) await db.from("dispositivi").delete().eq("endpoint", d.endpoint);
       else errori.push(String((e as Error).message ?? e));
     }
+  };
+  for (const d of disp ?? []) {
+    const msg: Messaggio = prova
+      ? { title: "Prova riuscita!", body: "Le notifiche funzionano. Se un giorno non apri l'app, ti scrivo negli orari scelti, sempre più arrabbiato." }
+      : (() => {
+        const l = LIVELLI[livelloDi.get(d.user_id) ?? 2];
+        const frasi = giaApertoOggi.has(d.user_id) ? l.giaAperto : l.frasi;
+        return { title: pick(l.titoli), body: pick(frasi).replace("{ora}", `${ora}`) };
+      })();
+    await invia(d, msg);
+    const ins = insultoDi.get(d.user_id);
+    if (ins) await invia(d, ins);
   }
   return json({ inviate, dispositivi: disp?.length ?? 0, errori });
 });

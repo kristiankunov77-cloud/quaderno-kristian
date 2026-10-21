@@ -116,6 +116,25 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
 .check[aria-checked="true"] { background: var(--goal); border-color: var(--goal); color: #fff }
 .check[aria-checked="true"] svg { opacity: 1 }
 .done .txt { color: var(--muted); text-decoration: line-through }
+.check.fail { color: var(--danger) }
+.check.fail svg { width: 13px; height: 13px; opacity: .45 }
+.check.fail[aria-checked="true"] svg { opacity: 1 }
+.check.fail[aria-checked="true"] { background: var(--danger); border-color: var(--danger); color: #fff }
+.failed .txt { color: var(--danger) }
+.pts { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--goal) }
+.pts.neg { color: var(--danger) }
+.score { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap }
+.score .big { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 34px; line-height: 1 }
+.score .sub { font-size: 13px; color: var(--muted) }
+.rules { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--muted); display: grid; gap: 2px }
+.insult { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.55) }
+.insult .box { background: var(--surface); border: 2px solid var(--danger); border-radius: var(--r); padding: 22px 20px; max-width: 420px; width: 100%; display: grid; gap: 12px; text-align: center; animation: shake .45s }
+.insult h3 { margin: 0; font-family: var(--font-display); font-size: 22px; color: var(--danger) }
+.insult p { margin: 0; font-size: 17px; line-height: 1.4 }
+.insult small { color: var(--muted); font-size: 13.5px }
+.insult ul { margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--muted) }
+@keyframes shake { 0%,100% { transform: none } 20%,60% { transform: translateX(-8px) } 40%,80% { transform: translateX(8px) } }
+@media (prefers-reduced-motion: reduce) { .insult .box { animation: none } }
 .chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); margin-right: 6px }
 
 /* Riepilogo */
@@ -221,6 +240,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     <div id="view"></div>
   </main>
 </div>
+<div class="insult" id="insult" hidden role="alertdialog" aria-modal="true" aria-labelledby="insult-t"><div class="box"><h3 id="insult-t"></h3><p id="insult-p"></p><ul id="insult-l"></ul><small id="insult-s"></small><button class="btn" id="insult-ok">Hai ragione, rimedio</button></div></div>
 <div class="toast" id="toast" hidden><span id="toastmsg"></span><button id="undo">Annulla</button></div>
 
 <script src="supabase.js"></script>
@@ -331,6 +351,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     if (error) { setSync('error'); return; }
     if (row) { data = Object.assign(emptyData(), row.data); cacheSave(); render(); }
     setSync('ok');
+    checkMissed();
   }
   async function push() {
     if (!userId) return;
@@ -452,6 +473,55 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     });
     return Object.entries(out).sort((a, b) => b[1] - a[1]);
   }
+  // Punti: +10 obiettivo del giorno fatto, +30 della settimana fatto,
+  // -5 obiettivo del giorno segnato "non fatto" o lasciato senza spunta dopo la sua giornata.
+  const PUNTI = { day: 10, week: 30, fail: -5 };
+  function goalPoints(g) {
+    if (g.done) return PUNTI[g.type];
+    if (g.type === 'day' && (g.failed || g.date < todayIso())) return PUNTI.fail;
+    return 0;
+  }
+  const totalPoints = () => data.goals.reduce((a, g) => a + goalPoints(g), 0);
+  const pointsOf = (goals) => goals.reduce((a, g) => a + goalPoints(g), 0);
+  const fmtPts = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+
+  const INSULTI = [
+    "Non l'hai fatto? Ma che cazzo hai fatto tutto il giorno, il soprammobile?",
+    "Complimenti, campione del mondo di nullafacenza. Medaglia d'oro in cazzeggio.",
+    "Te lo eri scritto da solo, eh. Nessuno ti obbligava. E comunque niente. Coglione.",
+    "Anche un sasso avrebbe fatto di più. Almeno il sasso non promette niente.",
+    "Obiettivo mancato. Bravo, continua così e diventi un professionista del divano.",
+    "Ma porca puttana, Kristian. Era UN obiettivo. Uno.",
+    "Scommetto che però il telefono l'hai usato tutto il giorno, eh? Pigro di merda.",
+    "Ti sei preso in giro da solo. Che figura di merda, pure davanti a te stesso.",
+    "Domani lo fai, vero? Come ieri, come l'altro ieri. Sì, certo, come no.",
+    "Mi vergogno io per te. E sono un'app.",
+    "Sei riuscito a non fare una cosa che avevi deciso tu. Genio incompreso del cazzo.",
+    "Meno cinque punti e una figura da imbecille. Ne è valsa la pena?",
+  ];
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  function insult(title, goals, sub) {
+    $('insult-t').textContent = title;
+    $('insult-p').textContent = pick(INSULTI);
+    $('insult-l').innerHTML = goals.map((g) => `<li>✗ ${esc(g.text)}</li>`).join('');
+    $('insult-s').textContent = sub;
+    $('insult').hidden = false;
+    $('insult-ok').focus();
+  }
+  // Il giorno dopo: obiettivi del giorno rimasti senza spunta ti arrivano in faccia appena apri l'app.
+  function checkMissed() {
+    if (data.example) return;
+    const t = todayIso();
+    const from = addDays(t, -7); // solo l'ultima settimana, non tutto lo storico
+    const missed = data.goals.filter((g) => g.type === 'day' && g.date < t && g.date >= from && !g.done && !g.failed && !g.insultato);
+    if (!missed.length) return;
+    missed.forEach((g) => { g.insultato = true; });
+    save(); render();
+    const n = missed.length;
+    insult(n === 1 ? 'Ieri non hai spuntato un obiettivo' : `Non hai spuntato ${n} obiettivi`, missed.slice(0, 6),
+      `${fmtPts(n * PUNTI.fail)} punti. Se non li segni, vuol dire che non li hai fatti.`);
+  }
+
   function weekGoalStats(day) {
     const days = weekDays(day);
     const all = data.goals.filter((g) => (g.type === 'day' && days.includes(g.date)) || (g.type === 'week' && g.date === days[0]));
@@ -501,9 +571,20 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
   const weekLabel = (day) => { const d = weekDays(day); return `${fmtDM(d[0])} – ${fmtDM(d[6])}`; };
 
   function goalRow(g) {
-    return `<li class="row${g.done ? ' done' : ''}">
-      <button class="check" role="checkbox" aria-checked="${g.done}" data-toggle="${g.id}" aria-label="Segna come fatto">${TICK}</button>
-      <span class="txt">${esc(g.text)}</span>${delBtn('goals', g.id)}</li>`;
+    const pts = goalPoints(g);
+    const fail = g.type === 'day'
+      ? `<button class="check fail" role="checkbox" aria-checked="${!!g.failed}" data-fail="${g.id}" aria-label="Segna come non fatto" title="Non fatto">${X}</button>` : '';
+    return `<li class="row${g.done ? ' done' : g.failed ? ' failed' : ''}">
+      <button class="check" role="checkbox" aria-checked="${g.done}" data-toggle="${g.id}" aria-label="Segna come fatto" title="Fatto">${TICK}</button>${fail}
+      <span class="txt">${esc(g.text)}</span>${pts ? `<span class="pts${pts < 0 ? ' neg' : ''}">${fmtPts(pts)}</span>` : ''}${delBtn('goals', g.id)}</li>`;
+  }
+  function scorePanel(day, rules) {
+    const tot = totalPoints(), today = pointsOf(dayGoals(day)), week = pointsOf(weekGoals(day));
+    return `<section class="panel">
+      <div class="score"><div><span class="label">Punti accumulati</span><div class="big">${tot}</div></div>
+        <span class="sub">${day === todayIso() ? 'oggi' : esc(fmtDM(day))} ${fmtPts(today)} · settimana ${fmtPts(week)}</span></div>
+      ${rules ? `<ul class="rules"><li>Obiettivo del giorno fatto: +${PUNTI.day}</li><li>Obiettivo della settimana fatto: +${PUNTI.week}</li><li>Obiettivo del giorno non fatto, o lasciato senza spunta: ${fmtPts(PUNTI.fail)} (e ti becchi un insulto)</li></ul>` : ''}
+    </section>`;
   }
 
   // ---------- viste ----------
@@ -519,6 +600,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
         <button class="stat" style="--c:var(--phone)" data-go="telefono"><span class="label">Utilizzo telefono</span><span class="big">${p == null ? '—' : hm(p)}</span><span class="sub">${p == null ? 'da inserire' : (data.phone[day].unlocks ? data.phone[day].unlocks + ' sblocchi' : 'tempo di utilizzo')}</span></button>
         <button class="stat" style="--c:var(--work)" data-go="lavoro"><span class="label">Lavoro</span><span class="big">${hm(workOn(day))}</span><span class="sub">settimana ${hm(weekDays(day).reduce((a, d) => a + workOn(d), 0))}</span></button>
       </div>
+      ${scorePanel(day)}
       ${timerBlock()}
       <section class="panel">
         <h2>Obiettivi di oggi <span class="aside">${doneToday} di ${dg.length}</span></h2>
@@ -546,6 +628,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
           <button class="btn">Aggiungi</button>
         </form>
       </section>
+      ${scorePanel(day, true)}
       <section class="panel">
         <h2>Settimana <span class="aside">${ws.done} di ${ws.total} completati</span></h2>
         <div class="progress" aria-label="Completamento settimana ${ws.pct}%"><i style="width:${ws.pct}%"></i></div>
@@ -691,7 +774,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
 
       return `
       <div class="stats">
-        <div class="stat" style="--c:var(--goal)"><span class="label">Obiettivi</span><span class="big">${gPct}%</span><span class="sub">${gDone} di ${goals.length} completati</span></div>
+        <div class="stat" style="--c:var(--goal)"><span class="label">Obiettivi</span><span class="big">${gPct}%</span><span class="sub">${gDone} di ${goals.length} completati · ${fmtPts(pointsOf(goals))} punti</span></div>
         <div class="stat" style="--c:var(--spend)"><span class="label">Spese</span><span class="big">${eur(spend)}</span><span class="sub">${eur(spend / nDays)} al giorno</span></div>
         <div class="stat" style="--c:var(--phone)"><span class="label">Utilizzo telefono</span><span class="big">${phoneVals.length ? hm(phoneAvg) : '—'}</span><span class="sub">media al giorno</span></div>
         <div class="stat" style="--c:var(--work)"><span class="label">Lavoro</span><span class="big">${hm(work)}</span><span class="sub">in ${workDays} ${workDays === 1 ? 'giorno' : 'giorni'}</span></div>
@@ -822,6 +905,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
   }
 
   // ---------- eventi ----------
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('insult').hidden) $('insult').hidden = true; });
   const num = (v) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
   document.addEventListener('click', (ev) => {
     const el = ev.target.closest('button');
@@ -850,7 +934,21 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       if (i) { data.goals.push({ id: uid(), text: i.text, type: 'week', date: monday(todayIso()), done: false }); commit('Aggiunta agli obiettivi di questa settimana'); }
       return;
     }
-    if (el.dataset.toggle) { const g = data.goals.find((x) => x.id === el.dataset.toggle); if (g) { g.done = !g.done; commit(); } return; }
+    if (el.dataset.toggle) {
+      const g = data.goals.find((x) => x.id === el.dataset.toggle);
+      if (g) { g.done = !g.done; if (g.done) g.failed = false; commit(g.done ? `${fmtPts(PUNTI[g.type])} punti, bravo` : ''); }
+      return;
+    }
+    if (el.dataset.fail) {
+      const g = data.goals.find((x) => x.id === el.dataset.fail);
+      if (!g) return;
+      g.failed = !g.failed;
+      g.done = false; g.insultato = g.failed;
+      commit();
+      if (g.failed) insult('Non l\'hai fatto?!', [g], `${fmtPts(PUNTI.fail)} punti. Il totale adesso è ${totalPoints()}.`);
+      return;
+    }
+    if (el.id === 'insult-ok') { $('insult').hidden = true; return; }
     if (el.dataset.del) {
       snapshot();
       if (el.dataset.del === 'phone') delete data.phone[el.dataset.id];
@@ -928,7 +1026,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     }
     if (was === userId) return;
     render();
-    isDirty() ? push() : pull();
+    if (isDirty()) { push(); checkMissed(); } else pull();
     markOpened(); loadReminder();
   }
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
