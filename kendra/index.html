@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fde6ef">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Quaderno di Kendra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+html, body { margin: 0; min-height: 100% }
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px) }
+img { max-width: 100% }
+[hidden] { display: none !important }
+</style>
+<style>
+/* Layout: app a giornata. Barra della data in alto, sezioni a schede (in basso su telefono, a sinistra su computer). */
+:root {
+  --bg: #fde6ef;
+  --surface: #ffffff;
+  --line: #f4cbdc;
+  --fg: #3b2340;
+  --muted: #7f6081;
+  --accent: #9a6fd8;
+  --accent-soft: #f1e6fc;
+  --goal: #8f62d9;
+  --spend: #d9588d;
+  --water: #3b9de0;
+  --points: #b07be6;
+  --danger: #cf3f55;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 14px;
+}
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5 }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg) }
+button, input, select { font: inherit; color: inherit }
+button { cursor: pointer }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums }
+
+.app { display: grid; grid-template-columns: 1fr; min-height: 100%; padding-bottom: 76px }
+.main { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px 24px; max-width: 760px; width: 100%; margin: 0 auto; display: grid; gap: 16px; align-content: start }
+
+/* Navigazione */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)) }
+.tab { background: none; border: 0; border-radius: 10px; padding: 6px 2px; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; color: var(--muted) }
+.tab svg { width: 22px; height: 22px }
+.tab span { text-align: center; line-height: 1.2 }
+.tab[aria-current="page"] { color: var(--fg); background: var(--accent-soft) }
+.brand { display: none }
+@media (min-width: 860px) {
+  .app { grid-template-columns: 220px 1fr; padding-bottom: 0 }
+  .tabs { position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; border-top: 0; border-right: 1px solid var(--line);
+    grid-template-columns: 1fr; align-content: start; gap: 4px; padding: 20px 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)) }
+  .tab { grid-auto-flow: column; justify-content: start; gap: 10px; font-size: 15px; padding: 9px 12px }
+  .brand { display: block; font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--accent); padding: 0 12px 16px; line-height: 1.15 }
+  .main { padding-block: 24px 40px }
+}
+
+/* Barra della data */
+.daybar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 4; background: var(--bg); display: flex; align-items: center; gap: 8px; padding-block: 6px }
+.daybar h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 5vw, 30px); margin: 0; flex: 1; min-width: 0; line-height: 1.1; text-wrap: balance }
+.daybar h1 small { display: block; font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--muted); letter-spacing: .02em }
+.iconbtn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center }
+.iconbtn svg { width: 18px; height: 18px }
+.todaybtn { height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13.5px; font-weight: 500 }
+
+/* Blocchi */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0 }
+.panel h2 { font-family: var(--font-display); font-weight: 700; font-size: 19px; margin: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; text-wrap: balance }
+.panel h2 .aside { font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--muted) }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600 }
+.empty { color: var(--muted); font-size: 14px; margin: 0 }
+
+.form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end }
+.field { display: grid; gap: 4px; flex: 1 1 120px; min-width: 0 }
+.field.wide { flex: 3 1 200px }
+.field.tiny { flex: 0 1 84px }
+.field label { font-size: 12.5px; color: var(--muted); font-weight: 500 }
+input, select { width: 100%; height: 42px; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 0 12px; min-width: 0 }
+.btn { height: 42px; border: 0; border-radius: 10px; padding: 0 16px; background: var(--accent); color: #fff; font-weight: 600; flex: 0 0 auto }
+.btn.ghost { background: var(--accent-soft); color: var(--fg) }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--bg) }
+.seg button { border: 0; background: none; border-radius: 7px; padding: 6px 12px; font-size: 13.5px; font-weight: 500; color: var(--muted) }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.08) }
+
+.list { list-style: none; margin: 0; padding: 0; display: grid }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); min-width: 0 }
+.row:first-child { border-top: 0 }
+.row .txt { flex: 1; min-width: 0; overflow-wrap: anywhere }
+.row .txt small { display: block; color: var(--muted); font-size: 13px }
+.row .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap }
+.del { border: 0; background: none; color: var(--muted); width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex: 0 0 auto }
+.del:hover { color: var(--danger); background: var(--bg) }
+.del svg { width: 16px; height: 16px }
+.check { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; flex: 0 0 auto; padding: 0 }
+.check svg { width: 14px; height: 14px; opacity: 0 }
+.check[aria-checked="true"] { background: var(--goal); border-color: var(--goal); color: #fff }
+.check[aria-checked="true"] svg { opacity: 1 }
+.done .txt { color: var(--muted); text-decoration: line-through }
+.check.fail { color: var(--danger) }
+.check.fail svg { width: 13px; height: 13px; opacity: .45 }
+.check.fail[aria-checked="true"] svg { opacity: 1 }
+.check.fail[aria-checked="true"] { background: var(--danger); border-color: var(--danger); color: #fff }
+.failed .txt { color: var(--danger) }
+.pts { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--goal) }
+.pts.neg { color: var(--danger) }
+.score { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap }
+.score .big { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 34px; line-height: 1 }
+.score .sub { font-size: 13px; color: var(--muted) }
+.rules { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--muted); display: grid; gap: 2px }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); margin-right: 6px }
+
+/* Riepilogo */
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+@media (min-width: 620px) { .stats { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 4px; text-align: left; border-top: 3px solid var(--c) }
+.stat .big { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 24px; line-height: 1.1 }
+.stat .sub { font-size: 12.5px; color: var(--muted) }
+.progress { height: 8px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); overflow: hidden }
+.progress i { display: block; height: 100%; background: var(--goal); border-radius: 99px }
+
+/* Grafico 7 giorni */
+.chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; align-items: end; height: 150px; padding-top: 18px }
+.bar { display: grid; grid-template-rows: auto 1fr auto; height: 100%; gap: 4px; text-align: center; min-width: 0 }
+.bar .v { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden }
+.bar .track { display: flex; align-items: end; justify-content: center; border-bottom: 1px solid var(--line) }
+.bar .fill { width: 70%; max-width: 34px; border-radius: 6px 6px 0 0; background: var(--c); opacity: .85; min-height: 2px }
+.bar.sel .fill { opacity: 1 }
+.bar .d { font-size: 12px; color: var(--muted); white-space: nowrap }
+.chart.month { gap: 2px; height: 130px; padding-top: 6px }
+.chart.month .fill { width: 100%; border-radius: 3px 3px 0 0 }
+.chart.month .d { font-size: 11px; overflow: visible }
+.chart.month .bar.today .fill { outline: 2px solid var(--fg); outline-offset: 1px }
+.chart.six { grid-template-columns: repeat(6, minmax(0, 1fr)) }
+.trend { display: grid; gap: 20px; grid-template-columns: 1fr }
+@media (min-width: 620px) { .trend { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+.trend > div { display: grid; gap: 4px; min-width: 0 }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; margin: 0 }
+.facts div { display: grid; gap: 2px }
+.facts dt { font-size: 12.5px; color: var(--muted) }
+.facts dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 16px }
+.bar.sel .d { color: var(--fg); font-weight: 600 }
+.hbars { display: grid; gap: 8px }
+.hbar { display: grid; grid-template-columns: minmax(0, 8.5em) 1fr 5.5em; gap: 10px; align-items: center; font-size: 14px }
+.hbar .t { height: 10px; background: var(--bg); border-radius: 99px; overflow: hidden; border: 1px solid var(--line) }
+.hbar .t i { display: block; height: 100%; background: var(--c) }
+.hbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.hbar .num { text-align: right }
+
+.banner { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 14px; border-radius: var(--r); background: var(--accent-soft); font-size: 14px }
+.banner p { margin: 0; flex: 1 1 220px }
+
+.hours { display: flex; flex-wrap: wrap; gap: 6px }
+.hour { height: 36px; min-width: 56px; padding: 0 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--bg); font-family: var(--font-mono); font-size: 13px }
+.hour[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent) }
+.linkbtn.small { font-size: 13px; padding: 4px 0 0; display: block }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; display: flex; gap: 14px; align-items: center; z-index: 20; font-size: 14px; max-width: calc(100% - 32px) }
+.toast button { background: none; border: 0; color: inherit; font-weight: 600; text-decoration: underline }
+@media (min-width: 860px) { .toast { bottom: 24px } }
+@media (prefers-reduced-motion: no-preference) { .fill, .progress i, .hbar .t i { transition: height .3s, width .3s } }
+
+.login { min-height: 100vh; display: grid; place-items: center; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px }
+.login form { width: 100%; max-width: 360px; display: grid; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 24px }
+.login h1 { font-family: var(--font-display); font-weight: 700; font-size: 28px; margin: 0; line-height: 1.1 }
+.login p { margin: 0; color: var(--muted); font-size: 14px }
+.login .err { color: var(--danger) }
+.sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
+.sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--goal) }
+.sync[data-s="saving"]::before { background: #e3a13a }
+.sync[data-s="error"]::before { background: var(--danger) }
+.account { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13.5px }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; text-decoration: underline }
+/* Acqua */
+.water { display: grid; gap: 12px }
+.water .now { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
+.water .now .big { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 34px; line-height: 1 }
+.water .now .sub { color: var(--muted); font-size: 14px }
+.water .progress i { background: var(--water) }
+.glasses { display: flex; flex-wrap: wrap; gap: 4px }
+.glass { width: 22px; height: 28px; border: 2px solid var(--water); border-top-width: 0; border-radius: 0 0 6px 6px; position: relative; overflow: hidden; opacity: .9 }
+.glass i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--water); opacity: .75 }
+.quick { display: flex; flex-wrap: wrap; gap: 8px }
+.quick .btn { background: var(--water) }
+.quick .btn.ghost { background: var(--accent-soft); color: var(--fg) }
+.nice { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(59,35,64,.35) }
+.nice .box { background: var(--surface); border: 2px solid var(--accent); border-radius: var(--r); padding: 22px 20px; max-width: 400px; width: 100%; display: grid; gap: 12px; text-align: center }
+.nice h3 { margin: 0; font-family: var(--font-display); font-size: 21px; color: var(--accent) }
+.nice p { margin: 0; font-size: 16px; line-height: 1.45 }
+.nice ul { margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--muted) }
+.nice small { color: var(--muted); font-size: 13.5px }
+</style>
+</head>
+<body>
+<section class="login" id="login" hidden>
+  <form id="f-login">
+    <h1>Quaderno di Kendra</h1>
+    <p>Accedi con la tua email e la tua password.</p>
+    <div class="field"><label for="l-email">Email</label><input id="l-email" type="email" required autocomplete="username"></div>
+    <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" required autocomplete="current-password"></div>
+    <button class="btn" id="l-btn">Accedi</button>
+    <p class="err" id="l-err" hidden></p>
+  </form>
+</section>
+
+<div class="app" id="app" hidden>
+  <nav class="tabs" id="tabs" aria-label="Sezioni">
+    <div class="brand">Quaderno<br>di Kendra</div>
+  </nav>
+  <main class="main" id="main">
+    <div class="daybar">
+      <button class="iconbtn" id="prev" aria-label="Giorno precedente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <h1 id="daytitle">Oggi</h1>
+      <button class="todaybtn" id="today" hidden>Oggi</button>
+      <button class="iconbtn" id="next" aria-label="Giorno successivo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+<div class="nice" id="nice" hidden role="dialog" aria-modal="true" aria-labelledby="nice-t"><div class="box"><h3 id="nice-t"></h3><p id="nice-p"></p><ul id="nice-l"></ul><small id="nice-s"></small><button class="btn" id="nice-ok">Ok</button></div></div>
+<div class="toast" id="toast" hidden><span id="toastmsg"></span><button id="undo">Annulla</button></div>
+
+<script src="../supabase.js"></script>
+<script src="../config.js"></script>
+<script>
+(function () {
+  // Dati separati da quelli di Kristian: chiave locale, login e tabella propri.
+  const KEY = 'quaderno-kendra-v1';
+  const TABLE = 'quaderno_kendra';
+  const APP = 'kendra';
+  const CATS = ['Cibo', 'Trasporti', 'Svago', 'Casa', 'Salute', 'Abbigliamento', 'Bellezza', 'Regali', 'Altro'];
+  const ICON = {
+    oggi: '<path d="M4 5h16v15H4zM4 10h16M9 3v4M15 3v4"/>',
+    obiettivi: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6"/>',
+    spese: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
+    acqua: '<path d="M12 3s-6 7-6 11a6 6 0 0 0 12 0c0-4-6-11-6-11z"/>',
+    riepilogo: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>'
+  };
+  const TABS = [['oggi', 'Oggi'], ['obiettivi', 'Obiettivi'], ['spese', 'Spese'], ['acqua', 'Acqua'], ['riepilogo', 'Riepilogo']];
+  const svg = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const X = svg('<path d="M6 6l12 12M18 6L6 18"/>');
+  const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  // ---------- date ----------
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const parse = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+  const monday = (s) => { const d = parse(s); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return iso(d); };
+  const weekDays = (s) => { const m = monday(s); return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(m, i)); };
+  const todayIso = () => iso(new Date());
+  const monthStart = (s) => s.slice(0, 8) + '01';
+  const addMonths = (s, n) => { const d = parse(monthStart(s)); d.setMonth(d.getMonth() + n); return iso(d); };
+  const monthDays = (s) => { const out = []; let d = monthStart(s); while (d.slice(0, 7) === s.slice(0, 7)) { out.push(d); d = addDays(d, 1); } return out; };
+  const fmtMonth = (s) => parse(monthStart(s)).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+  const fmtMonthShort = (s) => parse(monthStart(s)).toLocaleDateString('it-IT', { month: 'short' }).replace('.', '');
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const fmtLong = (s) => parse(s).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+  const fmtShortDay = (s) => parse(s).toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '');
+  const fmtDM = (s) => parse(s).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+
+  // ---------- formati ----------
+  const eur = (n) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+  const lt = (ml) => (ml >= 1000 ? (Math.round(ml / 10) / 100).toLocaleString('it-IT') + ' L' : Math.round(ml) + ' ml');
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+  // ---------- dati ----------
+  // water: { 'AAAA-MM-GG': millilitri }, waterGoal: obiettivo giornaliero in ml.
+  function emptyData() { return { goals: [], expenses: [], water: {}, waterGoal: 2000, example: false }; }
+  function cacheLoad() {
+    try { const raw = localStorage.getItem(KEY); if (raw) return Object.assign(emptyData(), JSON.parse(raw)); } catch (e) {}
+    return emptyData();
+  }
+  function cacheSave() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+  function setDirty(v) { try { v ? localStorage.setItem(KEY + ':dirty', '1') : localStorage.removeItem(KEY + ':dirty'); } catch (e) {} }
+  function isDirty() { try { return localStorage.getItem(KEY + ':dirty') === '1'; } catch (e) { return false; } }
+
+  const cfg = window.QUADERNO_CONFIG || {};
+  const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { storageKey: 'quaderno-kendra-auth' } });
+  let userId = null;
+  let data = cacheLoad();
+  let undoState = null;
+  let syncState = 'ok';
+  let pushTimer = null;
+
+  function setSync(s) {
+    syncState = s;
+    const el = document.getElementById('sync');
+    if (el) { el.dataset.s = s; el.textContent = { ok: 'Sincronizzato', saving: 'Salvataggio…', error: 'Non salvato online' }[s]; }
+  }
+  async function pull() {
+    if (!userId || isDirty()) return;
+    const { data: row, error } = await sb.from(TABLE).select('data').eq('user_id', userId).maybeSingle();
+    if (error) { setSync('error'); return; }
+    if (row) { data = Object.assign(emptyData(), row.data); cacheSave(); render(); }
+    setSync('ok');
+    checkMissed();
+  }
+  async function push() {
+    if (!userId) return;
+    clearTimeout(pushTimer);
+    const { error } = await sb.from(TABLE).upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
+    if (error) { setSync('error'); return; }
+    setDirty(false); setSync('ok');
+  }
+  function save() {
+    cacheSave(); setDirty(true); setSync('saving');
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(push, 500);
+  }
+  function commit(msg, undo) {
+    save(); render();
+    if (msg) toast(msg, undo);
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { isDirty() ? push() : pull(); markOpened(); } });
+
+  // ---------- promemoria ----------
+  const rem = { attivo: false, ore: [10, 15, 21], device: false, on: false };
+  const oreTxt = () => [...rem.ore].sort((a, b) => a - b).map((h) => h + ':00').join(', ');
+  const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const b64u = (s) => { const b = atob((s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+  function markOpened() { if (userId) sb.from('promemoria').upsert({ user_id: userId, ultimo_accesso: todayIso() }).then(() => {}, () => {}); }
+  async function loadReminder() {
+    try {
+      const { data: row } = await sb.from('promemoria').select('attivo, ore').eq('user_id', userId).maybeSingle();
+      if (row) { rem.attivo = !!row.attivo; if (Array.isArray(row.ore) && row.ore.length) rem.ore = row.ore; }
+      if (pushOk()) { const reg = await navigator.serviceWorker.getRegistration(); rem.device = !!(reg && await reg.pushManager.getSubscription()); }
+    } catch (e) {}
+    rem.on = rem.attivo && rem.device;
+    if (st.tab === 'oggi') render();
+  }
+  async function remOn() {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { toast('Senza il permesso di Chrome non posso mandarti notifiche'); render(); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(cfg.vapidPublicKey) });
+      const j = sub.toJSON();
+      let r = await sb.from('dispositivi').upsert({ endpoint: j.endpoint, user_id: userId, subscription: j, app: APP });
+      if (r.error) throw r.error;
+      r = await sb.from('promemoria').upsert({ user_id: userId, attivo: true, ore: rem.ore });
+      if (r.error) throw r.error;
+      rem.attivo = rem.device = rem.on = true;
+      render(); toast(`Promemoria attivato: ${oreTxt()}`);
+    } catch (e) { toast('Non sono riuscita ad attivarlo: ' + (e.message || e)); }
+  }
+  async function remOff() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg && await reg.pushManager.getSubscription();
+      if (sub) { await sb.from('dispositivi').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+    } catch (e) {}
+    rem.device = rem.on = false;
+    render(); toast('Promemoria disattivato su questo dispositivo');
+  }
+  async function remTest() {
+    toast('Invio la notifica di prova…');
+    const { data: res, error } = await sb.functions.invoke('promemoria', { body: { prova: true } });
+    if (error) toast('La prova non è partita, riprova più tardi.');
+    else if (!res.inviate) toast('Nessuna notifica inviata' + (res.errori && res.errori.length ? ': ' + res.errori[0] : ''));
+    else toast('Notifica di prova inviata');
+  }
+  async function remToggleHour(h) {
+    const next = rem.ore.includes(h) ? rem.ore.filter((x) => x !== h) : [...rem.ore, h].sort((a, b) => a - b);
+    if (!next.length) { toast('Lascia almeno un orario'); return; }
+    rem.ore = next;
+    render();
+    const r = await sb.from('promemoria').upsert({ user_id: userId, ore: next });
+    toast(r.error ? 'Orari non salvati, riprova' : `Promemoria: ${oreTxt()}`);
+  }
+  function reminderPanel() {
+    let body;
+    if (!pushOk()) body = '<p class="empty">Qui le notifiche non sono disponibili. Sul telefono apri il Quaderno dall\'icona installata con Chrome.</p>';
+    else if (Notification.permission === 'denied') body = '<p class="empty">Le notifiche sono bloccate. Riattivale in Chrome da Impostazioni sito › Notifiche, poi torna qui.</p>';
+    else {
+      const hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].map((h) => `<button class="hour" data-hour="${h}" aria-pressed="${rem.ore.includes(h)}">${h}:00</button>`).join('');
+      body = `<p class="empty">${rem.on ? 'Attivo su questo dispositivo.' : 'Spento su questo dispositivo.'} Ti arriva un piccolo promemoria a ogni orario scelto: obiettivi, spese e acqua.</p>
+        <span class="label">Orari</span>
+        <div class="hours" role="group" aria-label="Orari dei promemoria">${hours}</div>
+        <div class="form">
+          ${rem.on ? '<button class="btn ghost" data-rem="test">Mandami una prova</button><button class="btn ghost" data-rem="off">Disattiva</button>' : '<button class="btn" data-rem="on">Attiva</button>'}
+        </div>`;
+    }
+    return `<section class="panel"><h2>Promemoria</h2>${body}</section>`;
+  }
+
+  window.addEventListener('online', () => (isDirty() ? push() : pull()));
+  function snapshot() { undoState = JSON.stringify(data); }
+
+  // ---------- stato vista ----------
+  const st = { tab: 'oggi', day: todayIso(), goalType: 'day' };
+  try { const t = localStorage.getItem(KEY + ':tab'); if (TABS.some((x) => x[0] === t)) st.tab = t; } catch (e) {}
+  if (TABS.some((x) => x[0] === location.hash.slice(1))) st.tab = location.hash.slice(1);
+
+  // ---------- calcoli ----------
+  const dayGoals = (day) => data.goals.filter((g) => g.type === 'day' && g.date === day);
+  const weekGoals = (day) => data.goals.filter((g) => g.type === 'week' && g.date === monday(day));
+  const spentOn = (day) => data.expenses.filter((e) => e.date === day).reduce((a, e) => a + e.amount, 0);
+  const waterOn = (day) => data.water[day] || 0;
+  const waterGoal = () => data.waterGoal || 2000;
+  function weekGoalStats(day) {
+    const days = weekDays(day);
+    const all = data.goals.filter((g) => (g.type === 'day' && days.includes(g.date)) || (g.type === 'week' && g.date === days[0]));
+    const done = all.filter((g) => g.done).length;
+    return { done, total: all.length, pct: all.length ? Math.round((done / all.length) * 100) : 0 };
+  }
+  // Punti: +10 obiettivo del giorno fatto, +30 della settimana fatto,
+  // -5 obiettivo del giorno segnato "non fatto" o lasciato senza spunta dopo la sua giornata.
+  const PUNTI = { day: 10, week: 30, fail: -5 };
+  function goalPoints(g) {
+    if (g.done) return PUNTI[g.type];
+    if (g.type === 'day' && (g.failed || g.date < todayIso())) return PUNTI.fail;
+    return 0;
+  }
+  const totalPoints = () => data.goals.reduce((a, g) => a + goalPoints(g), 0);
+  const pointsOf = (goals) => goals.reduce((a, g) => a + goalPoints(g), 0);
+  const fmtPts = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+  // Punti guadagnati o persi in un giorno (obiettivi del giorno + quelli della settimana segnati quel lunedì).
+  const pointsOn = (day) => pointsOf(dayGoals(day));
+
+  const CORAGGIO = [
+    'Capita a tutti. Domani ci riprovi con calma.',
+    'Non è andata, pazienza. L\'importante è non mollare.',
+    'Un giorno storto non cambia niente. Sei sempre brava.',
+    'Va bene così, domani è un altro giorno.',
+    'Prenditi un attimo e riparti, ce la fai.',
+  ];
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  function nice(title, goals, sub) {
+    $('nice-t').textContent = title;
+    $('nice-p').textContent = pick(CORAGGIO);
+    $('nice-l').innerHTML = goals.map((g) => `<li>${esc(g.text)}</li>`).join('');
+    $('nice-s').textContent = sub;
+    $('nice').hidden = false;
+    $('nice-ok').focus();
+  }
+  // Il giorno dopo: gli obiettivi rimasti senza spunta tolgono punti, e l'app lo dice con gentilezza.
+  function checkMissed() {
+    if (data.example) return;
+    const t = todayIso(), from = addDays(t, -7);
+    const missed = data.goals.filter((g) => g.type === 'day' && g.date < t && g.date >= from && !g.done && !g.failed && !g.avvisato);
+    if (!missed.length) return;
+    missed.forEach((g) => { g.avvisato = true; });
+    save(); render();
+    const n = missed.length;
+    nice(n === 1 ? 'Un obiettivo è rimasto senza spunta' : `${n} obiettivi sono rimasti senza spunta`, missed.slice(0, 6),
+      `${fmtPts(n * PUNTI.fail)} punti. Ricordati di segnarli ogni giorno.`);
+  }
+
+  // ---------- componenti ----------
+  function chart(day, valueFn, fmt, color) {
+    const days = weekDays(day);
+    const vals = days.map((d) => valueFn(d) || 0);
+    const max = Math.max(...vals, 1);
+    return `<div class="chart" style="--c:var(${color})" role="img" aria-label="Ultima settimana">${days.map((d, i) => `
+      <div class="bar${d === day ? ' sel' : ''}">
+        <span class="v">${vals[i] ? fmt(vals[i]) : ''}</span>
+        <div class="track"><div class="fill" style="height:${(vals[i] / max) * 100}%"></div></div>
+        <span class="d">${fmtShortDay(d)}</span>
+      </div>`).join('')}</div>`;
+  }
+  function monthChart(day, valueFn, fmt, color) {
+    const days = monthDays(day), t = todayIso();
+    const vals = days.map((d) => Math.max(0, valueFn(d) || 0));
+    const max = Math.max(...vals, 1);
+    const label = (d) => { const n = Number(d.slice(8)); return n === 1 || n % 7 === 1 ? n : ''; };
+    return `<div class="chart month" style="--c:var(${color});grid-template-columns:repeat(${days.length},minmax(0,1fr))" role="img" aria-label="Giorni del mese">${days.map((d, i) => `
+      <div class="bar${d === t ? ' today' : ''}" title="${Number(d.slice(8))}: ${vals[i] ? fmt(vals[i]) : '—'}">
+        <span class="v"></span>
+        <div class="track"><div class="fill" style="height:${(vals[i] / max) * 100}%${d > t || !vals[i] ? ';visibility:hidden' : ''}"></div></div>
+        <span class="d">${label(d)}</span>
+      </div>`).join('')}</div>`;
+  }
+  function sixChart(months, vals, fmt, color, sel) {
+    const max = Math.max(...vals.map((v) => Math.abs(v)), 1);
+    return `<div class="chart six" style="--c:var(${color})" role="img" aria-label="Ultimi sei mesi">${months.map((m, i) => `
+      <div class="bar${m === sel ? ' sel' : ''}">
+        <span class="v">${vals[i] ? fmt(vals[i]) : ''}</span>
+        <div class="track"><div class="fill" style="height:${(Math.max(0, vals[i]) / max) * 100}%"></div></div>
+        <span class="d">${fmtMonthShort(m)}</span>
+      </div>`).join('')}</div>`;
+  }
+  function hbars(entries, fmt, color) {
+    const max = Math.max(...entries.map((e) => e[1]), 1);
+    return `<div class="hbars" style="--c:var(${color})">${entries.map(([k, v]) => `
+      <div class="hbar"><span title="${esc(k)}">${esc(k)}</span><div class="t"><i style="width:${(v / max) * 100}%"></i></div><span class="num">${fmt(v)}</span></div>`).join('')}</div>`;
+  }
+  const delBtn = (kind, id) => `<button class="del" data-del="${kind}" data-id="${id}" aria-label="Elimina">${X}</button>`;
+  const weekLabel = (day) => { const d = weekDays(day); return `${fmtDM(d[0])} – ${fmtDM(d[6])}`; };
+
+  function goalRow(g) {
+    const pts = goalPoints(g);
+    const fail = g.type === 'day'
+      ? `<button class="check fail" role="checkbox" aria-checked="${!!g.failed}" data-fail="${g.id}" aria-label="Segna come non fatto" title="Non fatto">${X}</button>` : '';
+    return `<li class="row${g.done ? ' done' : g.failed ? ' failed' : ''}">
+      <button class="check" role="checkbox" aria-checked="${g.done}" data-toggle="${g.id}" aria-label="Segna come fatto" title="Fatto">${TICK}</button>${fail}
+      <span class="txt">${esc(g.text)}</span>${pts ? `<span class="pts${pts < 0 ? ' neg' : ''}">${fmtPts(pts)}</span>` : ''}${delBtn('goals', g.id)}</li>`;
+  }
+  function scorePanel(day, rules) {
+    const tot = totalPoints(), today = pointsOf(dayGoals(day)), week = pointsOf(weekGoals(day));
+    return `<section class="panel">
+      <div class="score"><div><span class="label">Punti accumulati</span><div class="big">${tot}</div></div>
+        <span class="sub">${day === todayIso() ? 'oggi' : esc(fmtDM(day))} ${fmtPts(today)} · settimana ${fmtPts(week)}</span></div>
+      ${rules ? `<ul class="rules"><li>Obiettivo del giorno fatto: +${PUNTI.day}</li><li>Obiettivo della settimana fatto: +${PUNTI.week}</li><li>Obiettivo del giorno non fatto, o lasciato senza spunta: ${fmtPts(PUNTI.fail)}</li></ul>` : ''}
+    </section>`;
+  }
+  function waterPanel(day, compact) {
+    const ml = waterOn(day), goal = waterGoal();
+    const pct = Math.min(100, Math.round((ml / goal) * 100));
+    const glasses = Math.max(Math.ceil(goal / 250), Math.ceil(ml / 250));
+    const g = Array.from({ length: glasses }, (_, i) => { const f = Math.max(0, Math.min(1, (ml - i * 250) / 250)); return `<span class="glass"><i style="height:${f * 100}%"></i></span>`; }).join('');
+    return `<section class="panel water">
+      <h2>Acqua ${compact ? '' : `<span class="aside">${esc(fmtLong(day))}</span>`}</h2>
+      <div class="now"><span class="big">${lt(ml)}</span><span class="sub">di ${lt(goal)} · ${pct}%${ml >= goal ? ' · obiettivo raggiunto!' : ''}</span></div>
+      <div class="progress" aria-label="Acqua bevuta ${pct}%"><i style="width:${pct}%"></i></div>
+      <div class="glasses" aria-hidden="true">${g}</div>
+      <div class="quick">
+        <button class="btn" data-water="250">+ Bicchiere (250 ml)</button>
+        <button class="btn" data-water="500">+ Bottiglietta (500 ml)</button>
+        ${ml ? '<button class="btn ghost" data-water="-250">− 250 ml</button>' : ''}
+      </div>
+    </section>`;
+  }
+
+  // ---------- viste ----------
+  const views = {
+    oggi(day) {
+      const dg = dayGoals(day), wg = weekGoals(day), ws = weekGoalStats(day);
+      const doneToday = dg.filter((g) => g.done).length;
+      const ml = waterOn(day);
+      return `
+      <div class="stats">
+        <button class="stat" style="--c:var(--goal)" data-go="obiettivi"><span class="label">Obiettivi</span><span class="big">${doneToday}/${dg.length}</span><span class="sub">fatti oggi · settimana ${ws.pct}%</span></button>
+        <button class="stat" style="--c:var(--points)" data-go="obiettivi"><span class="label">Punti</span><span class="big">${totalPoints()}</span><span class="sub">oggi ${fmtPts(pointsOf(dg))}</span></button>
+        <button class="stat" style="--c:var(--spend)" data-go="spese"><span class="label">Spese</span><span class="big">${eur(spentOn(day))}</span><span class="sub">settimana ${eur(weekDays(day).reduce((a, d) => a + spentOn(d), 0))}</span></button>
+        <button class="stat" style="--c:var(--water)" data-go="acqua"><span class="label">Acqua</span><span class="big">${lt(ml)}</span><span class="sub">di ${lt(waterGoal())}</span></button>
+      </div>
+      <section class="panel">
+        <h2>Obiettivi di oggi <span class="aside">${doneToday} di ${dg.length}</span></h2>
+        ${dg.length ? `<ul class="list">${dg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo per questo giorno. Aggiungilo nella sezione Obiettivi.</p>'}
+      </section>
+      <section class="panel">
+        <h2>Obiettivi della settimana <span class="aside">${weekLabel(day)}</span></h2>
+        ${wg.length ? `<ul class="list">${wg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo settimanale.</p>'}
+      </section>
+      ${waterPanel(day, true)}
+      ${reminderPanel()}`;
+    },
+
+    obiettivi(day) {
+      const dg = dayGoals(day), wg = weekGoals(day), ws = weekGoalStats(day);
+      return `
+      <section class="panel">
+        <h2>Nuovo obiettivo</h2>
+        <div class="seg" role="group" aria-label="Tipo di obiettivo">
+          <button data-gtype="day" aria-pressed="${st.goalType === 'day'}">Per il giorno</button>
+          <button data-gtype="week" aria-pressed="${st.goalType === 'week'}">Per la settimana</button>
+        </div>
+        <form class="form" id="f-goal">
+          <div class="field wide"><label for="g-text">${st.goalType === 'day' ? 'Obiettivo per ' + esc(fmtLong(day)) : 'Obiettivo per la settimana ' + weekLabel(day)}</label>
+            <input id="g-text" required maxlength="140" placeholder="Es. Fare yoga 20 minuti" autocomplete="off"></div>
+          <button class="btn">Aggiungi</button>
+        </form>
+      </section>
+      ${scorePanel(day, true)}
+      <section class="panel">
+        <h2>Settimana <span class="aside">${ws.done} di ${ws.total} completati</span></h2>
+        <div class="progress" aria-label="Completamento settimana ${ws.pct}%"><i style="width:${ws.pct}%"></i></div>
+        <span class="label">${ws.pct}% della settimana ${weekLabel(day)}</span>
+      </section>
+      <section class="panel">
+        <h2>Del giorno <span class="aside">${esc(fmtLong(day))}</span></h2>
+        ${dg.length ? `<ul class="list">${dg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo per questo giorno.</p>'}
+      </section>
+      <section class="panel">
+        <h2>Della settimana <span class="aside">${weekLabel(day)}</span></h2>
+        ${wg.length ? `<ul class="list">${wg.map(goalRow).join('')}</ul>` : '<p class="empty">Nessun obiettivo per questa settimana.</p>'}
+      </section>`;
+    },
+
+    spese(day) {
+      const list = data.expenses.filter((e) => e.date === day);
+      const days = weekDays(day);
+      const byCat = {};
+      data.expenses.filter((e) => days.includes(e.date)).forEach((e) => { byCat[e.cat] = (byCat[e.cat] || 0) + e.amount; });
+      const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+      const weekTot = cats.reduce((a, c) => a + c[1], 0);
+      return `
+      <section class="panel">
+        <h2>Nuova spesa</h2>
+        <form class="form" id="f-exp">
+          <div class="field tiny"><label for="e-amt">Euro</label><input id="e-amt" required inputmode="decimal" placeholder="0,00" autocomplete="off"></div>
+          <div class="field"><label for="e-cat">Categoria</label><select id="e-cat">${CATS.map((c) => `<option>${c}</option>`).join('')}</select></div>
+          <div class="field wide"><label for="e-note">Nota</label><input id="e-note" maxlength="80" placeholder="Es. Pranzo" autocomplete="off"></div>
+          <button class="btn">Aggiungi</button>
+        </form>
+      </section>
+      <section class="panel">
+        <h2>Spese del giorno <span class="aside num">${eur(spentOn(day))}</span></h2>
+        ${list.length ? `<ul class="list">${list.map((e) => `<li class="row"><span class="txt"><span class="chip">${esc(e.cat)}</span>${esc(e.note || '')}</span><span class="val">${eur(e.amount)}</span>${delBtn('expenses', e.id)}</li>`).join('')}</ul>` : '<p class="empty">Nessuna spesa in questo giorno.</p>'}
+      </section>
+      <section class="panel">
+        <h2>Settimana <span class="aside num">${eur(weekTot)}</span></h2>
+        ${chart(day, spentOn, (v) => Math.round(v) + '€', '--spend')}
+        ${cats.length ? `<span class="label">Per categoria</span>${hbars(cats, eur, '--spend')}` : ''}
+      </section>`;
+    },
+
+    acqua(day) {
+      const days = weekDays(day);
+      const known = days.filter((d) => waterOn(d) > 0);
+      const avg = known.length ? known.reduce((a, d) => a + waterOn(d), 0) / known.length : 0;
+      const reached = days.filter((d) => waterOn(d) >= waterGoal()).length;
+      return `
+      ${waterPanel(day)}
+      <section class="panel">
+        <h2>Quantità precisa</h2>
+        <form class="form" id="f-water">
+          <div class="field"><label for="w-ml">Aggiungi millilitri</label><input id="w-ml" type="number" min="1" max="5000" inputmode="numeric" placeholder="Es. 330" required></div>
+          <button class="btn">Aggiungi</button>
+        </form>
+        <form class="form" id="f-wgoal">
+          <div class="field"><label for="w-goal">Obiettivo al giorno (ml)</label><input id="w-goal" type="number" min="250" max="6000" step="50" inputmode="numeric" value="${waterGoal()}" required></div>
+          <button class="btn ghost">Salva obiettivo</button>
+        </form>
+        ${waterOn(day) ? `<div class="form"><button type="button" class="btn ghost" data-water-reset="${day}">Azzera questo giorno</button></div>` : ''}
+      </section>
+      <section class="panel">
+        <h2>Settimana <span class="aside">media ${known.length ? lt(avg) : '—'} al giorno</span></h2>
+        ${chart(day, waterOn, lt, '--water')}
+        <span class="label">Obiettivo raggiunto ${reached} ${reached === 1 ? 'giorno' : 'giorni'} su 7</span>
+      </section>`;
+    },
+
+    riepilogo(day) {
+      const days = monthDays(day), t = todayIso();
+      const prev = addMonths(day, -1), prevDays = monthDays(prev);
+      const past = days.filter((d) => d <= t);
+      const nDays = past.length || days.length;
+      const sum = (ds, f) => ds.reduce((a, d) => a + (f(d) || 0), 0);
+      const pct = (a, b) => (b ? Math.round(((a - b) / b) * 100) : null);
+      const vs = (a, b, fmt) => { const p = pct(a, b); return b ? `${p > 0 ? '+' : ''}${p}% rispetto a ${fmtMonthShort(prev)} (${fmt(b)})` : `nessun dato a ${fmtMonthShort(prev)}`; };
+      const dayName = (d) => `${Number(d.slice(8))} ${fmtMonthShort(d)}`;
+      const monthGoals = (ds) => data.goals.filter((g) => ds.includes(g.date));
+
+      // Obiettivi e punti
+      const goals = monthGoals(days), prevGoals = monthGoals(prevDays);
+      const gDone = goals.filter((g) => g.done).length;
+      const gMissed = goals.filter((g) => goalPoints(g) < 0).length;
+      const gPct = goals.length ? Math.round((gDone / goals.length) * 100) : 0;
+      const pts = pointsOf(goals), ptsPrev = pointsOf(prevGoals);
+      const dayG = goals.filter((g) => g.type === 'day'), weekG = goals.filter((g) => g.type === 'week');
+      const best = days.map((d) => [d, pointsOn(d)]).sort((a, b) => b[1] - a[1])[0];
+
+      // Spese
+      const spend = sum(days, spentOn), spendPrev = sum(prevDays, spentOn);
+      const byCat = {};
+      data.expenses.filter((e) => days.includes(e.date)).forEach((e) => { byCat[e.cat] = (byCat[e.cat] || 0) + e.amount; });
+      const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+      const topExp = data.expenses.filter((e) => days.includes(e.date)).sort((a, b) => b.amount - a.amount)[0];
+
+      // Acqua
+      const wDays = days.filter((d) => waterOn(d) > 0);
+      const wTot = sum(days, waterOn);
+      const wAvg = wDays.length ? wTot / wDays.length : 0;
+      const wPrevDays = prevDays.filter((d) => waterOn(d) > 0);
+      const wPrevAvg = wPrevDays.length ? sum(prevDays, waterOn) / wPrevDays.length : 0;
+      const wReached = days.filter((d) => waterOn(d) >= waterGoal()).length;
+      const wMax = wDays.slice().sort((a, b) => waterOn(b) - waterOn(a))[0];
+      const wMin = wDays.slice().sort((a, b) => waterOn(a) - waterOn(b))[0];
+
+      const months = [5, 4, 3, 2, 1, 0].map((i) => addMonths(day, -i));
+      const sel = monthStart(day);
+      const mSpend = months.map((m) => sum(monthDays(m), spentOn));
+      const mWater = months.map((m) => { const ds = monthDays(m).filter((d) => waterOn(d) > 0); return ds.length ? sum(ds, waterOn) / ds.length : 0; });
+      const mPts = months.map((m) => pointsOf(monthGoals(monthDays(m))));
+
+      return `
+      <div class="stats">
+        <div class="stat" style="--c:var(--goal)"><span class="label">Obiettivi</span><span class="big">${gPct}%</span><span class="sub">${gDone} di ${goals.length} completati</span></div>
+        <div class="stat" style="--c:var(--points)"><span class="label">Punti del mese</span><span class="big">${fmtPts(pts)}</span><span class="sub">totale ${totalPoints()}</span></div>
+        <div class="stat" style="--c:var(--spend)"><span class="label">Spese</span><span class="big">${eur(spend)}</span><span class="sub">${eur(spend / nDays)} al giorno</span></div>
+        <div class="stat" style="--c:var(--water)"><span class="label">Acqua</span><span class="big">${wDays.length ? lt(wAvg) : '—'}</span><span class="sub">media al giorno</span></div>
+      </div>
+      <section class="panel">
+        <h2>Obiettivi e punti <span class="aside num">${fmtPts(pts)} punti</span></h2>
+        <span class="label">${prevGoals.length ? `${fmtPts(ptsPrev)} punti a ${fmtMonthShort(prev)}` : `nessun obiettivo a ${fmtMonthShort(prev)}`}</span>
+        ${goals.length ? `<dl class="facts">
+          <div><dt>Del giorno fatti</dt><dd>${dayG.filter((g) => g.done).length} su ${dayG.length}</dd></div>
+          <div><dt>Della settimana fatti</dt><dd>${weekG.filter((g) => g.done).length} su ${weekG.length}</dd></div>
+          <div><dt>Non fatti</dt><dd>${gMissed}</dd></div>
+          ${best && best[1] > 0 ? `<div><dt>Giorno migliore</dt><dd>${fmtPts(best[1])} · ${dayName(best[0])}</dd></div>` : ''}
+        </dl>` : '<p class="empty">Nessun obiettivo in questo mese.</p>'}
+        <span class="label">Punti guadagnati giorno per giorno</span>
+        ${monthChart(day, pointsOn, (v) => fmtPts(v), '--points')}
+      </section>
+      <section class="panel">
+        <h2>Spese <span class="aside num">${eur(spend)}</span></h2>
+        <span class="label">${vs(spend, spendPrev, eur)}</span>
+        ${monthChart(day, spentOn, eur, '--spend')}
+        ${cats.length ? `<span class="label">Per categoria</span>${hbars(cats, eur, '--spend')}` : '<p class="empty">Nessuna spesa in questo mese.</p>'}
+        ${topExp ? `<dl class="facts"><div><dt>Spesa più alta</dt><dd>${eur(topExp.amount)}</dd></div><div><dt>Di cosa</dt><dd style="font-family:var(--font-body)">${esc(topExp.note || topExp.cat)} · ${dayName(topExp.date)}</dd></div></dl>` : ''}
+      </section>
+      <section class="panel">
+        <h2>Acqua <span class="aside">${wDays.length} ${wDays.length === 1 ? 'giorno segnato' : 'giorni segnati'}</span></h2>
+        <span class="label">${wDays.length ? vs(Math.round(wAvg), Math.round(wPrevAvg), lt) : 'Nessun dato in questo mese'}</span>
+        ${monthChart(day, waterOn, lt, '--water')}
+        ${wDays.length ? `<dl class="facts">
+          <div><dt>Media al giorno</dt><dd>${lt(wAvg)}</dd></div>
+          <div><dt>Totale del mese</dt><dd>${lt(wTot)}</dd></div>
+          <div><dt>Obiettivo raggiunto</dt><dd>${wReached} ${wReached === 1 ? 'giorno' : 'giorni'} su ${nDays}</dd></div>
+          <div><dt>Giorno con più acqua</dt><dd>${lt(waterOn(wMax))} · ${dayName(wMax)}</dd></div>
+          <div><dt>Giorno con meno acqua</dt><dd>${lt(waterOn(wMin))} · ${dayName(wMin)}</dd></div>
+        </dl>` : ''}
+      </section>
+      <section class="panel">
+        <h2>Ultimi 6 mesi</h2>
+        <div class="trend">
+          <div><span class="label">Punti</span>${sixChart(months, mPts, (v) => fmtPts(v), '--points', sel)}</div>
+          <div><span class="label">Spese</span>${sixChart(months, mSpend, (v) => Math.round(v) + '€', '--spend', sel)}</div>
+          <div><span class="label">Acqua, media al giorno</span>${sixChart(months, mWater, lt, '--water', sel)}</div>
+        </div>
+      </section>`;
+    }
+  };
+
+  // ---------- render ----------
+  const $ = (id) => document.getElementById(id);
+  function render() {
+    const tabs = $('tabs');
+    tabs.querySelectorAll('.tab').forEach((n) => n.remove());
+    TABS.forEach(([k, label]) => {
+      const b = document.createElement('button');
+      b.className = 'tab'; b.dataset.tab = k;
+      if (st.tab === k) b.setAttribute('aria-current', 'page');
+      b.innerHTML = svg(ICON[k]) + `<span>${label}</span>`;
+      tabs.appendChild(b);
+    });
+    const monthly = st.tab === 'riepilogo';
+    const isToday = monthly ? monthStart(st.day) === monthStart(todayIso()) : st.day === todayIso();
+    const rel = st.day === addDays(todayIso(), -1) ? 'Ieri' : st.day === todayIso() ? 'Oggi' : '';
+    if (monthly) $('daytitle').innerHTML = `<small>Riepilogo del mese</small>${esc(cap(fmtMonth(st.day)))}`;
+    else $('daytitle').innerHTML = `<small>${rel ? rel : TABS.find((t) => t[0] === st.tab)[1]}</small>${esc(cap(fmtLong(st.day)))}`;
+    $('today').hidden = isToday;
+    $('today').textContent = monthly ? 'Questo mese' : 'Oggi';
+    $('prev').setAttribute('aria-label', monthly ? 'Mese precedente' : 'Giorno precedente');
+    $('next').setAttribute('aria-label', monthly ? 'Mese successivo' : 'Giorno successivo');
+    const focusId = document.activeElement && document.activeElement.id;
+    const account = `<div class="account"><span class="sync" id="sync"></span><button class="linkbtn" data-logout>Esci</button></div>`;
+    $('view').innerHTML = `<div style="display:grid;gap:16px">${views[st.tab](st.day)}${account}</div>`;
+    setSync(syncState);
+    if (focusId && $(focusId) && focusId.startsWith('g-')) $(focusId).focus();
+  }
+
+  function toast(msg, undo) {
+    if (!undo) undoState = null;
+    $('undo').hidden = !undo;
+    $('toastmsg').textContent = msg;
+    $('toast').hidden = false;
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => { $('toast').hidden = true; }, 5000);
+  }
+
+  // ---------- eventi ----------
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('nice').hidden) $('nice').hidden = true; });
+  const num = (v) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
+  function addWater(day, ml) {
+    const before = waterOn(day), goal = waterGoal();
+    const v = Math.max(0, before + ml);
+    if (v) data.water[day] = v; else delete data.water[day];
+    commit(before < goal && v >= goal ? 'Obiettivo dell\'acqua raggiunto, brava!' : `${lt(v)} di ${lt(goal)}`);
+  }
+  document.addEventListener('click', (ev) => {
+    const el = ev.target.closest('button');
+    if (!el) return;
+    if (el.dataset.tab || el.dataset.go) {
+      st.tab = el.dataset.tab || el.dataset.go;
+      try { localStorage.setItem(KEY + ':tab', st.tab); } catch (e) {}
+      render(); window.scrollTo(0, 0); return;
+    }
+    if (el.id === 'prev' || el.id === 'next') {
+      const n = el.id === 'prev' ? -1 : 1;
+      if (st.tab === 'riepilogo') { const m = addMonths(st.day, n); st.day = monthStart(m) === monthStart(todayIso()) ? todayIso() : m; }
+      else st.day = addDays(st.day, n);
+      render(); return;
+    }
+    if (el.id === 'today') { st.day = todayIso(); render(); return; }
+    if (el.id === 'undo') { if (undoState) { data = JSON.parse(undoState); undoState = null; save(); render(); } $('toast').hidden = true; return; }
+    if (el.id === 'nice-ok') { $('nice').hidden = true; return; }
+    if (el.dataset.gtype) { st.goalType = el.dataset.gtype; render(); return; }
+    if (el.dataset.toggle) {
+      const g = data.goals.find((x) => x.id === el.dataset.toggle);
+      if (g) { g.done = !g.done; if (g.done) g.failed = false; commit(g.done ? `${fmtPts(PUNTI[g.type])} punti, brava!` : ''); }
+      return;
+    }
+    if (el.dataset.fail) {
+      const g = data.goals.find((x) => x.id === el.dataset.fail);
+      if (!g) return;
+      g.failed = !g.failed;
+      g.done = false; g.avvisato = g.failed;
+      commit(g.failed ? `${fmtPts(PUNTI.fail)} punti. ${pick(CORAGGIO)}` : '');
+      return;
+    }
+    if (el.dataset.water) { addWater(st.day, Number(el.dataset.water)); return; }
+    if (el.dataset.waterReset) { snapshot(); delete data.water[el.dataset.waterReset]; commit('Acqua azzerata', true); return; }
+    if (el.dataset.del) {
+      snapshot();
+      data[el.dataset.del] = data[el.dataset.del].filter((x) => x.id !== el.dataset.id);
+      commit('Eliminato', true); return;
+    }
+    if (el.dataset.hour) { remToggleHour(Number(el.dataset.hour)); return; }
+    if (el.dataset.rem) { ({ on: remOn, off: remOff, test: remTest })[el.dataset.rem](); return; }
+    if (el.hasAttribute('data-logout')) { (isDirty() ? push() : Promise.resolve()).then(() => sb.auth.signOut()); return; }
+  });
+
+  document.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const f = ev.target.id;
+    if (f === 'f-goal') {
+      const text = $('g-text').value.trim(); if (!text) return;
+      data.goals.push({ id: uid(), text, type: st.goalType, date: st.goalType === 'day' ? st.day : monday(st.day), done: false });
+      commit('Obiettivo aggiunto'); $('g-text').focus();
+    } else if (f === 'f-exp') {
+      const amount = Math.round(num($('e-amt').value) * 100) / 100;
+      if (amount <= 0) { $('e-amt').setCustomValidity('Scrivi un importo maggiore di zero'); $('e-amt').reportValidity(); $('e-amt').setCustomValidity(''); return; }
+      data.expenses.push({ id: uid(), date: st.day, amount, cat: $('e-cat').value, note: $('e-note').value.trim() });
+      commit(`Spesa di ${eur(amount)} aggiunta`);
+    } else if (f === 'f-water') {
+      const ml = Math.round(num($('w-ml').value)); if (ml <= 0) return;
+      addWater(st.day, ml);
+    } else if (f === 'f-wgoal') {
+      const g = Math.round(num($('w-goal').value)); if (g < 250) return;
+      data.waterGoal = g; commit(`Obiettivo dell'acqua: ${lt(g)} al giorno`);
+    }
+  });
+
+  document.getElementById('f-login').addEventListener('submit', async (ev) => {
+    ev.preventDefault(); ev.stopPropagation();
+    const err = $('l-err'); err.hidden = true; $('l-btn').disabled = true;
+    const { error } = await sb.auth.signInWithPassword({ email: $('l-email').value.trim(), password: $('l-pass').value });
+    $('l-btn').disabled = false;
+    if (error) { err.textContent = 'Email o password non corrette.'; err.hidden = false; }
+  });
+
+  function showApp(session) {
+    const was = userId;
+    userId = session ? session.user.id : null;
+    $('login').hidden = !!session;
+    $('app').hidden = !session;
+    if (!session) {
+      if (was) { data = emptyData(); try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + ':dirty'); } catch (e) {} }
+      return;
+    }
+    if (was === userId) return;
+    render();
+    if (isDirty()) { push(); checkMissed(); } else pull();
+    markOpened(); loadReminder();
+  }
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  sb.auth.onAuthStateChange((_event, session) => setTimeout(() => showApp(session), 0));
+})();
+</script>
+</body>
+</html>

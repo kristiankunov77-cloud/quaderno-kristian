@@ -1,0 +1,17 @@
+{
+  "name": "Quaderno di Kendra",
+  "short_name": "Quaderno Kendra",
+  "description": "Obiettivi, spese e acqua di ogni giorno.",
+  "lang": "it",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fde6ef",
+  "theme_color": "#fde6ef",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

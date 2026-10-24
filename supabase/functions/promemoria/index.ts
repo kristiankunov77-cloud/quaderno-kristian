@@ -4,6 +4,7 @@
 //   Al primo orario della giornata manda anche un insulto per gli obiettivi di ieri
 //   rimasti senza spunta (né "fatto" né "non fatto").
 // - Chiamata dall'app con il tuo login: manda subito una notifica di prova.
+// - I dispositivi del Quaderno di Kendra (colonna app = 'kendra') ricevono solo frasi gentili.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 
@@ -11,6 +12,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const APP_URL = "https://kristiankunov77-cloud.github.io/quaderno-kristian/";
+const URL_DI: Record<string, string> = { kristian: APP_URL, kendra: APP_URL + "kendra/" };
 
 webpush.setVapidDetails(APP_URL, Deno.env.get("VAPID_PUBLIC_KEY")!, Deno.env.get("VAPID_PRIVATE_KEY")!);
 
@@ -75,6 +77,19 @@ const INSULTI = [
 ];
 const TITOLI_INSULTO = ["Obiettivi di ieri: bocciato", "Vergognati", "Kristian, che figura di merda"];
 const PUNTI_NON_FATTO = 5;
+
+// Quaderno di Kendra: promemoria normali, senza insulti.
+const KENDRA = {
+  titoli: ["Quaderno di Kendra", "Ciao Kendra", "Piccolo promemoria"],
+  frasi: [
+    "Come vanno gli obiettivi di oggi? Ricordati di spuntarli.",
+    "Hai bevuto abbastanza acqua? Scrivilo nel Quaderno.",
+    "Due minuti per segnare le spese di oggi?",
+    "Sono le {ora}: un bicchiere d'acqua e un'occhiata agli obiettivi.",
+    "Ricordati di aggiornare il tuo Quaderno.",
+    "Ogni obiettivo fatto vale punti. Come stai andando oggi?",
+  ],
+};
 
 // Livello in base alla posizione dell'orario tra quelli scelti: primo 0, ultimo 2.
 function livello(ore: number[], ora: number) {
@@ -157,14 +172,21 @@ Deno.serve(async (req) => {
   }
   if (!utenti.length) return json({ inviate: 0 });
 
-  const { data: disp, error } = await db.from("dispositivi").select("endpoint, subscription, user_id").in("user_id", utenti);
-  if (error) return json({ errore: error.message }, 500);
+  // Se la colonna "app" non esiste ancora (SQL non eseguito), tutti i dispositivi sono del Quaderno di Kristian.
+  type Dispositivo = { endpoint: string; subscription: webpush.PushSubscription; user_id: string; app?: string };
+  const conApp = await db.from("dispositivi").select("endpoint, subscription, user_id, app").in("user_id", utenti);
+  let disp = conApp.data as Dispositivo[] | null;
+  if (conApp.error) {
+    const senza = await db.from("dispositivi").select("endpoint, subscription, user_id").in("user_id", utenti);
+    if (senza.error) return json({ errore: senza.error.message }, 500);
+    disp = senza.data as Dispositivo[];
+  }
 
   let inviate = 0;
   const errori: string[] = [];
-  const invia = async (d: { endpoint: string; subscription: webpush.PushSubscription }, msg: Messaggio) => {
+  const invia = async (d: Dispositivo, msg: Messaggio) => {
     try {
-      await webpush.sendNotification(d.subscription, JSON.stringify({ ...msg, url: APP_URL }), { TTL: 3600 });
+      await webpush.sendNotification(d.subscription, JSON.stringify({ ...msg, url: URL_DI[d.app ?? "kristian"] ?? APP_URL }), { TTL: 3600 });
       inviate++;
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode;
@@ -174,15 +196,20 @@ Deno.serve(async (req) => {
     }
   };
   for (const d of disp ?? []) {
+    const kendra = d.app === "kendra";
     const msg: Messaggio = prova
-      ? { title: "Prova riuscita!", body: "Le notifiche funzionano. Se un giorno non apri l'app, ti scrivo negli orari scelti, sempre più arrabbiato." }
+      ? (kendra
+        ? { title: "Prova riuscita!", body: "Le notifiche funzionano. Ti scrivo negli orari che hai scelto." }
+        : { title: "Prova riuscita!", body: "Le notifiche funzionano. Se un giorno non apri l'app, ti scrivo negli orari scelti, sempre più arrabbiato." })
+      : kendra
+      ? { title: pick(KENDRA.titoli), body: pick(KENDRA.frasi).replace("{ora}", `${ora}`) }
       : (() => {
         const l = LIVELLI[livelloDi.get(d.user_id) ?? 2];
         const frasi = giaApertoOggi.has(d.user_id) ? l.giaAperto : l.frasi;
         return { title: pick(l.titoli), body: pick(frasi).replace("{ora}", `${ora}`) };
       })();
     await invia(d, msg);
-    const ins = insultoDi.get(d.user_id);
+    const ins = kendra ? undefined : insultoDi.get(d.user_id);
     if (ins) await invia(d, ins);
   }
   return json({ inviate, dispositivi: disp?.length ?? 0, errori });
