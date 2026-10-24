@@ -12,7 +12,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const APP_URL = "https://kristiankunov77-cloud.github.io/quaderno-kristian/";
-const URL_DI: Record<string, string> = { kristian: APP_URL, kendra: APP_URL + "kendra/" };
+const URL_DI: Record<string, string> = { kristian: APP_URL, kendra: "https://kristiankunov77-cloud.github.io/quaderno-kendra/" };
 
 webpush.setVapidDetails(APP_URL, Deno.env.get("VAPID_PUBLIC_KEY")!, Deno.env.get("VAPID_PRIVATE_KEY")!);
 
