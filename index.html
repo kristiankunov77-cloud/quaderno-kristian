@@ -396,7 +396,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') { toast('Senza il permesso di Chrome non posso mandarti notifiche'); render(); return; }
       const reg = await navigator.serviceWorker.ready;
-      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(cfg.vapidPublicKey) });
+      const sub = await subscribe(reg);
       const j = sub.toJSON();
       let r = await sb.from('dispositivi').upsert({ endpoint: j.endpoint, user_id: userId, subscription: j });
       if (r.error) throw r.error;
@@ -404,7 +404,19 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       if (r.error) throw r.error;
       rem.attivo = rem.device = rem.on = true;
       render(); toast(`Promemoria attivato: ${oreTxt()}`);
-    } catch (e) { toast('Non sono riuscito ad attivarlo: ' + (e.message || e)); }
+    } catch (e) { toast(/push service/i.test(e.message || '') ? 'Il browser non riesce a contattare il servizio delle notifiche. Usa Chrome senza VPN o blocchi, oppure attiva le notifiche Google se usi Brave.' : 'Non sono riuscito ad attivarlo: ' + (e.message || e)); }
+  }
+  // Se la prima iscrizione fallisce (es. "push service error" dopo una reinstallazione),
+  // toglie quella vecchia rimasta appesa e riprova una volta.
+  async function subscribe(reg) {
+    const opts = { userVisibleOnly: true, applicationServerKey: b64u(cfg.vapidPublicKey) };
+    const old = await reg.pushManager.getSubscription();
+    if (old) return old;
+    try { return await reg.pushManager.subscribe(opts); } catch (e) {
+      try { const s = await reg.pushManager.getSubscription(); if (s) await s.unsubscribe(); } catch (x) {}
+      await new Promise((r) => setTimeout(r, 1500));
+      return await reg.pushManager.subscribe(opts);
+    }
   }
   async function remOff() {
     try {
