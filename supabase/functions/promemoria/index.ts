@@ -5,6 +5,8 @@
 //   rimasti senza spunta (né "fatto" né "non fatto").
 // - Chiamata dall'app con il tuo login: manda subito una notifica di prova.
 // - I dispositivi del Quaderno di Kendra (colonna app = 'kendra') ricevono solo frasi gentili.
+// - I dispositivi del Ciclo di Kendra (colonna app = 'ciclo') ricevono solo gli avvisi del ciclo:
+//   due giorni prima, il giorno previsto, ogni giorno di ritardo, giorni fertili e ovulazione.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 
@@ -12,7 +14,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const APP_URL = "https://kristiankunov77-cloud.github.io/quaderno-kristian/";
-const URL_DI: Record<string, string> = { kristian: APP_URL, kendra: "https://kristiankunov77-cloud.github.io/quaderno-kendra/" };
+const URL_DI: Record<string, string> = {
+  kristian: APP_URL,
+  kendra: "https://kristiankunov77-cloud.github.io/quaderno-kendra/",
+  ciclo: "https://kristiankunov77-cloud.github.io/ciclo-kendra/",
+};
 
 webpush.setVapidDetails(APP_URL, Deno.env.get("VAPID_PUBLIC_KEY")!, Deno.env.get("VAPID_PRIVATE_KEY")!);
 
@@ -134,18 +140,89 @@ function insultoDiIeri(goals: Obiettivo[], ieri: string): Messaggio | null {
   };
 }
 
+// ---------- Ciclo di Kendra ----------
+// Stesso calcolo dell'app: la data prevista è l'inizio dell'ultimo ciclo più la durata media
+// (ultimi 6 cicli, oppure quella di partenza). Non si sposta: dal giorno dopo conta il ritardo.
+type Periodo = { start: string; end?: string };
+type DatiCiclo = {
+  periods?: Periodo[];
+  baseCycle?: number;
+  basePeriod?: number;
+  logs?: Record<string, unknown>;
+  notifiche?: Record<string, unknown>;
+};
+const utc = (s: string) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+const diff = (a: string, b: string) => Math.round((utc(b) - utc(a)) / 86400000);
+const piu = (s: string, n: number) => new Date(utc(s) + n * 86400000).toISOString().slice(0, 10);
+const media = (a: number[]) => Math.round(a.reduce((x, y) => x + y, 0) / a.length);
+const dataIt = (s: string) =>
+  new Date(utc(s)).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const giorni = (n: number) => `${n} ${n === 1 ? "giorno" : "giorni"}`;
+
+function messaggiCiclo(d: DatiCiclo, oggi: string, ora: number): Messaggio[] {
+  const n = {
+    ora: 9, prima: true, giorno: true, ritardo: true, fine: true, fertile: true, ovulazione: true, sintomi: false, oraSintomi: 21,
+    ...(d.notifiche ?? {}),
+  };
+  const out: Messaggio[] = [];
+  if (n.sintomi && ora === n.oraSintomi && !(d.logs ?? {})[oggi]) {
+    out.push({ title: "Come stai oggi?", body: "Segna sintomi e umore di oggi, così i consigli sono più giusti per te.", tag: "ciclo-sintomi" });
+  }
+  const per = (d.periods ?? []).filter((p) => p && p.start).sort((a, b) => (a.start < b.start ? -1 : 1));
+  if (!per.length || ora !== n.ora) return out;
+  const lens: number[] = [];
+  for (let i = 1; i < per.length; i++) {
+    const x = diff(per[i - 1].start, per[i].start);
+    if (x >= 15 && x <= 90) lens.push(x);
+  }
+  const cyc = lens.length ? media(lens.slice(-6)) : (d.baseCycle ?? 28);
+  const plens = per.filter((p) => p.end).map((p) => diff(p.start, p.end!) + 1).filter((x) => x >= 1 && x <= 15).slice(-6);
+  const flow = plens.length ? media(plens) : (d.basePeriod ?? 5);
+  const last = per[per.length - 1];
+  if (oggi < last.start) return out;
+  const atteso = piu(last.start, cyc);
+  const fineStimata = piu(last.start, flow - 1);
+  const ovu = piu(atteso, -14);
+  const tra = diff(oggi, atteso);
+  if (n.prima && tra === 2) {
+    out.push({ title: "Il ciclo si avvicina", body: `Dovrebbe arrivare ${dataIt(atteso)}, tra 2 giorni. Tieni a portata assorbenti e la borsa dell'acqua calda.`, tag: "ciclo-prima" });
+  }
+  if (n.giorno && tra === 0) {
+    out.push({ title: "Oggi è il giorno previsto", body: "Oggi dovrebbe arrivare il ciclo. Quando arriva, apri l'app e premi \"Mi è arrivato il ciclo\".", tag: "ciclo-giorno" });
+  }
+  if (n.ritardo && tra < 0 && (-tra <= 14 || -tra % 7 === 0)) {
+    out.push({ title: "Ciclo in ritardo", body: `Il ciclo è in ritardo di ${giorni(-tra)}: era previsto ${dataIt(atteso)}. Quando arriva, segnalo nell'app.`, tag: "ciclo-ritardo" });
+  }
+  if (n.fine && !last.end && oggi === piu(fineStimata, 1)) {
+    out.push({ title: "Il ciclo è finito?", body: "Se è finito, segnalo nell'app: così impara quanto dura di solito il tuo flusso.", tag: "ciclo-fine" });
+  }
+  if (ovu > fineStimata) {
+    if (n.fertile && oggi === piu(ovu, -5)) {
+      out.push({ title: "Giorni fertili", body: `Da oggi fino a ${dataIt(piu(ovu, 1))} sei nei giorni fertili.`, tag: "ciclo-fertile" });
+    }
+    if (n.ovulazione && oggi === ovu) {
+      out.push({ title: "Ovulazione", body: "Oggi è il giorno stimato dell'ovulazione, il più fertile del ciclo.", tag: "ciclo-ovulazione" });
+    }
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
   const { oggi, ieri, ora } = adessoARoma();
+  let corpo: { prova?: boolean; app?: string } = {};
+  try { corpo = await req.json(); } catch { /* chiamata del cron senza corpo */ }
+  const cron = !!CRON_SECRET && token === CRON_SECRET;
+  const provaCiclo = !cron && corpo.app === "ciclo";
 
   let utenti: string[];
   let prova = false;
   const livelloDi = new Map<string, number>();
   const giaApertoOggi = new Set<string>();
   const insultoDi = new Map<string, Messaggio>();
-  if (CRON_SECRET && token === CRON_SECRET) {
+  if (cron) {
     const { data, error } = await db.from("promemoria").select("user_id, ultimo_accesso, ore").eq("attivo", true).contains("ore", [ora]);
     if (error) return json({ errore: error.message }, 500);
     // La notifica parte a ogni orario scelto, anche se oggi hai già aperto l'app:
@@ -170,20 +247,9 @@ Deno.serve(async (req) => {
     utenti = [user.id];
     prova = true;
   }
-  if (!utenti.length) return json({ inviate: 0 });
-
-  // Se la colonna "app" non esiste ancora (SQL non eseguito), tutti i dispositivi sono del Quaderno di Kristian.
-  type Dispositivo = { endpoint: string; subscription: webpush.PushSubscription; user_id: string; app?: string };
-  const conApp = await db.from("dispositivi").select("endpoint, subscription, user_id, app").in("user_id", utenti);
-  let disp = conApp.data as Dispositivo[] | null;
-  if (conApp.error) {
-    const senza = await db.from("dispositivi").select("endpoint, subscription, user_id").in("user_id", utenti);
-    if (senza.error) return json({ errore: senza.error.message }, 500);
-    disp = senza.data as Dispositivo[];
-  }
-
   let inviate = 0;
   const errori: string[] = [];
+  type Dispositivo = { endpoint: string; subscription: webpush.PushSubscription; user_id: string; app?: string };
   const invia = async (d: Dispositivo, msg: Messaggio) => {
     try {
       await webpush.sendNotification(d.subscription, JSON.stringify({ ...msg, url: URL_DI[d.app ?? "kristian"] ?? APP_URL }), { TTL: 3600 });
@@ -195,9 +261,37 @@ Deno.serve(async (req) => {
       else errori.push(String((e as Error).message ?? e));
     }
   };
-  for (const d of disp ?? []) {
+
+  // Avvisi del Ciclo di Kendra: all'ora scelta nell'app, solo sui dispositivi dell'app del ciclo.
+  if (cron) {
+    const { data: dc, error: ec } = await db.from("dispositivi").select("endpoint, subscription, user_id, app").eq("app", "ciclo");
+    if (!ec && dc?.length) {
+      const ids = [...new Set(dc.map((d) => d.user_id))];
+      const { data: righe } = await db.from("ciclo_kendra").select("user_id, data").in("user_id", ids);
+      for (const r of righe ?? []) {
+        const msgs = messaggiCiclo((r.data ?? {}) as DatiCiclo, oggi, ora);
+        for (const d of dc.filter((x) => x.user_id === r.user_id) as Dispositivo[]) for (const m of msgs) await invia(d, m);
+      }
+    }
+  }
+  if (!utenti.length) return json({ inviate, errori });
+
+  // Se la colonna "app" non esiste ancora (SQL non eseguito), tutti i dispositivi sono del Quaderno di Kristian.
+  const conApp = await db.from("dispositivi").select("endpoint, subscription, user_id, app").in("user_id", utenti);
+  let disp = conApp.data as Dispositivo[] | null;
+  if (conApp.error) {
+    const senza = await db.from("dispositivi").select("endpoint, subscription, user_id").in("user_id", utenti);
+    if (senza.error) return json({ errore: senza.error.message }, 500);
+    disp = senza.data as Dispositivo[];
+  }
+
+  // La prova dell'app del ciclo va solo ai suoi dispositivi; i promemoria dei Quaderni non vanno mai lì.
+  disp = (disp ?? []).filter((d) => (provaCiclo ? d.app === "ciclo" : d.app !== "ciclo"));
+  for (const d of disp) {
     const kendra = d.app === "kendra";
-    const msg: Messaggio = prova
+    const msg: Messaggio = provaCiclo
+      ? { title: "Prova riuscita!", body: "Le notifiche del ciclo funzionano. Ti avviso prima del ciclo, nei giorni fertili e se è in ritardo." }
+      : prova
       ? (kendra
         ? { title: "Prova riuscita!", body: "Le notifiche funzionano. Ti scrivo negli orari che hai scelto." }
         : { title: "Prova riuscita!", body: "Le notifiche funzionano. Se un giorno non apri l'app, ti scrivo negli orari scelti, sempre più arrabbiato." })
