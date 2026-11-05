@@ -121,6 +121,8 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
 .check.fail[aria-checked="true"] svg { opacity: 1 }
 .check.fail[aria-checked="true"] { background: var(--danger); border-color: var(--danger); color: #fff }
 .failed .txt { color: var(--danger) }
+.when { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 99px; padding: 1px 8px; white-space: nowrap }
+.when svg { width: 13px; height: 13px }
 .pts { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--goal) }
 .pts.neg { color: var(--danger) }
 .score { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap }
@@ -318,6 +320,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
   const TABS = [['oggi', 'Oggi'], ['obiettivi', 'Obiettivi'], ['idee', 'Idee'], ['spese', 'Spese'], ['telefono', 'Utilizzo telefono'], ['lavoro', 'Lavoro'], ['riepilogo', 'Riepilogo']];
   const svg = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const X = svg('<path d="M6 6l12 12M18 6L6 18"/>');
+  const BELL = svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>');
   const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
   // ---------- date ----------
@@ -497,7 +500,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     else {
       const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].map((h) => `<button class="hour" data-hour="${h}" aria-pressed="${rem.ore.includes(h)}">${h}:00</button>`).join('');
       const tones = [...rem.ore].sort((a, b) => a - b).map((h) => `<span><b>${h}:00</b> ${TONI[tono(rem.ore, h)]}</span>`).join('');
-      body = `<p class="empty">${rem.on ? 'Attivo su questo dispositivo.' : 'Spento su questo dispositivo.'} Ti arriva una notifica a ogni orario scelto, sempre più cattiva, anche se hai già aperto il Quaderno.</p>
+      body = `<p class="empty">${rem.on ? 'Attivo su questo dispositivo.' : 'Spento su questo dispositivo.'} Ti arriva una notifica a ogni orario scelto, sempre più cattiva, anche se hai già aperto il Quaderno. In più ti ricordo uno per uno gli obiettivi di oggi non ancora spuntati, e quelli con un orario anche a quell'ora.</p>
         <span class="label">Orari</span>
         <div class="hours" role="group" aria-label="Orari dei promemoria">${hours}</div>
         <div class="tones">${tones}</div>
@@ -636,7 +639,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       ? `<button class="check fail" role="checkbox" aria-checked="${!!g.failed}" data-fail="${g.id}" aria-label="Segna come non fatto" title="Non fatto">${X}</button>` : '';
     return `<li class="row${g.done ? ' done' : g.failed ? ' failed' : ''}">
       <button class="check" role="checkbox" aria-checked="${g.done}" data-toggle="${g.id}" aria-label="Segna come fatto" title="Fatto">${TICK}</button>${fail}
-      <span class="txt">${esc(g.text)}</span>${pts ? `<span class="pts${pts < 0 ? ' neg' : ''}">${fmtPts(pts)}</span>` : ''}${delBtn('goals', g.id)}</li>`;
+      <span class="txt">${esc(g.text)}${g.ora != null && g.type === 'day' && !g.done ? ` <span class="when" title="Avviso alle ${g.ora}:00">${BELL}${g.ora}:00</span>` : ''}</span>${pts ? `<span class="pts${pts < 0 ? ' neg' : ''}">${fmtPts(pts)}</span>` : ''}${delBtn('goals', g.id)}</li>`;
   }
   function scorePanel(day, rules) {
     const tot = totalPoints(), today = pointsOf(dayGoals(day)), week = pointsOf(weekGoals(day));
@@ -685,6 +688,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
         <form class="form" id="f-goal">
           <div class="field wide"><label for="g-text">${st.goalType === 'day' ? 'Obiettivo per ' + esc(fmtLong(day)) : 'Obiettivo per la settimana ' + weekLabel(day)}</label>
             <input id="g-text" required maxlength="140" placeholder="Es. Camminare 8.000 passi" autocomplete="off"></div>
+          ${st.goalType === 'day' ? `<div class="field tiny" style="flex:0 1 140px"><label for="g-ora">Avvisami alle</label><select id="g-ora"><option value="">Orari soliti</option>${[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].map((h) => `<option value="${h}">${h}:00</option>`).join('')}</select></div>` : ''}
           <button class="btn">Aggiungi</button>
         </form>
       </section>
@@ -1114,8 +1118,11 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     fx = { added: true };
     if (f === 'f-goal') {
       const text = $('g-text').value.trim(); if (!text) return;
-      data.goals.push({ id: uid(), text, type: st.goalType, date: st.goalType === 'day' ? st.day : monday(st.day), done: false });
-      commit('Obiettivo aggiunto'); $('g-text').focus();
+      const ora = st.goalType === 'day' && $('g-ora') && $('g-ora').value !== '' ? Number($('g-ora').value) : null;
+      const g = { id: uid(), text, type: st.goalType, date: st.goalType === 'day' ? st.day : monday(st.day), done: false };
+      if (ora != null) g.ora = ora;
+      data.goals.push(g);
+      commit(ora != null ? `Obiettivo aggiunto, ti avviso alle ${ora}:00` : 'Obiettivo aggiunto'); $('g-text').focus();
     } else if (f === 'f-exp') {
       const amount = Math.round(num($('e-amt').value) * 100) / 100;
       if (amount <= 0) { $('e-amt').setCustomValidity('Scrivi un importo maggiore di zero'); $('e-amt').reportValidity(); $('e-amt').setCustomValidity(''); return; }
