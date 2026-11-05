@@ -7,6 +7,8 @@
 // - I dispositivi del Quaderno di Kendra (colonna app = 'kendra') ricevono solo frasi gentili.
 // - I dispositivi del Ciclo di Kendra (colonna app = 'ciclo') ricevono solo gli avvisi del ciclo:
 //   due giorni prima, il giorno previsto, ogni giorno di ritardo, giorni fertili e ovulazione.
+// - I dispositivi del Quaderno di Krasimir (colonna app = 'krasimir') ricevono una notifica per ogni
+//   obiettivo di oggi non ancora fatto, con suono e vibrazione: agli orari scelti e all'ora del singolo obiettivo.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 
@@ -18,6 +20,7 @@ const URL_DI: Record<string, string> = {
   kristian: APP_URL,
   kendra: "https://kristiankunov77-cloud.github.io/quaderno-kendra/",
   ciclo: "https://kristiankunov77-cloud.github.io/ciclo-kendra/",
+  krasimir: "https://kristiankunov77-cloud.github.io/quaderno-krasimir/",
 };
 
 webpush.setVapidDetails(APP_URL, Deno.env.get("VAPID_PUBLIC_KEY")!, Deno.env.get("VAPID_PRIVATE_KEY")!);
@@ -125,7 +128,7 @@ function adessoARoma() {
 }
 
 type Obiettivo = { text?: string; type?: string; date?: string; done?: boolean; failed?: boolean; insultato?: boolean };
-type Messaggio = { title: string; body: string; tag?: string };
+type Messaggio = { title: string; body: string; tag?: string; vibrate?: number[] };
 
 // Obiettivi del giorno di ieri senza spunta. Se li hai già visti nell'app (insultato) non li ripete.
 function insultoDiIeri(goals: Obiettivo[], ieri: string): Messaggio | null {
@@ -207,6 +210,41 @@ function messaggiCiclo(d: DatiCiclo, oggi: string, ora: number): Messaggio[] {
   return out;
 }
 
+// ---------- Quaderno di Krasimir ----------
+// "Chiamare Francesco" diventa "Ricordati di chiamare Francesco oggi!".
+const VIBRA = [400, 150, 400, 150, 400];
+function frase(testo: string) {
+  const t = testo.trim().replace(/[.!\s]+$/, "");
+  const primo = t.split(/\s+/)[0] ?? "";
+  const oggi = /\boggi\b/i.test(t) ? "" : " oggi";
+  if (/^ricordati\b/i.test(t)) return `${t.charAt(0).toUpperCase()}${t.slice(1)}!`;
+  if (/^ricordar(e|si)\s/i.test(t)) return `Ricordati ${t.replace(/^ricordar(e|si)\s+/i, "")}${oggi}!`;
+  // Se inizia con un verbo all'infinito (chiamare, mandare, comprare...) la frase scorre meglio.
+  if (/^[A-Za-zÀ-ú]+(are|ere|ire|rre|arsi|ersi|irsi|arlo|arla|arle|arli|erlo|irlo)$/i.test(primo)) return `Ricordati di ${t.charAt(0).toLowerCase()}${t.slice(1)}${oggi}!`;
+  return `Ricordati${oggi}: ${t}!`;
+}
+type ObiettivoK = { id?: string; text?: string; type?: string; date?: string; done?: boolean; failed?: boolean; ora?: number | null };
+function messaggiKrasimir(goals: ObiettivoK[], oggi: string, ora: number, ore: number[] | null): Messaggio[] {
+  const delGiorno = goals.filter((g) => g.type === "day" && g.date === oggi);
+  const daFare = delGiorno.filter((g) => !g.done && !g.failed && g.text);
+  const orarioScelto = !!ore && ore.includes(ora);
+  const out: Messaggio[] = [];
+  if (orarioScelto && !delGiorno.length && Math.min(...ore!) === ora) {
+    out.push({ title: "Buongiorno Krasimir!", body: "Scrivi le cose da fare oggi, così te le ricordo io.", tag: "krasimir-giorno", vibrate: VIBRA });
+  }
+  const ora_ = daFare.filter((g) => g.ora === ora);
+  const altri = orarioScelto ? daFare.filter((g) => g.ora !== ora) : [];
+  for (const g of ora_) out.push({ title: `Sono le ${ora}:00`, body: frase(g.text!), tag: `krasimir-${g.id}`, vibrate: VIBRA });
+  // Al massimo 6 notifiche per volta, le altre in una sola.
+  const max = Math.max(0, 6 - out.length);
+  for (const g of altri.slice(0, altri.length > max ? max - 1 : max)) out.push({ title: "Da fare oggi", body: frase(g.text!), tag: `krasimir-${g.id}`, vibrate: VIBRA });
+  if (altri.length > max && max > 0) {
+    const resto = altri.length - (max - 1);
+    out.push({ title: "Da fare oggi", body: `Hai ancora altre ${resto} cose da fare oggi. Apri il Quaderno per vederle.`, tag: "krasimir-altre", vibrate: VIBRA });
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
@@ -274,6 +312,21 @@ Deno.serve(async (req) => {
       }
     }
   }
+  // Quaderno di Krasimir: ogni ora controlla gli obiettivi di oggi.
+  if (cron) {
+    const { data: dk, error: ek } = await db.from("dispositivi").select("endpoint, subscription, user_id, app").eq("app", "krasimir");
+    if (!ek && dk?.length) {
+      const ids = [...new Set(dk.map((d) => d.user_id))];
+      const { data: righe } = await db.from("quaderno_krasimir").select("user_id, data").in("user_id", ids);
+      const { data: prom } = await db.from("promemoria").select("user_id, attivo, ore").in("user_id", ids);
+      for (const r of righe ?? []) {
+        const p = (prom ?? []).find((x) => x.user_id === r.user_id);
+        const ore = p && p.attivo !== false && Array.isArray(p.ore) ? p.ore as number[] : null;
+        const msgs = messaggiKrasimir((r.data?.goals ?? []) as ObiettivoK[], oggi, ora, ore);
+        for (const d of dk.filter((x) => x.user_id === r.user_id) as Dispositivo[]) for (const m of msgs) await invia(d, m);
+      }
+    }
+  }
   if (!utenti.length) return json({ inviate, errori });
 
   // Se la colonna "app" non esiste ancora (SQL non eseguito), tutti i dispositivi sono del Quaderno di Kristian.
@@ -286,8 +339,21 @@ Deno.serve(async (req) => {
   }
 
   // La prova dell'app del ciclo va solo ai suoi dispositivi; i promemoria dei Quaderni non vanno mai lì.
-  disp = (disp ?? []).filter((d) => (provaCiclo ? d.app === "ciclo" : d.app !== "ciclo"));
+  // Il Quaderno di Krasimir ha le sue notifiche (sopra): qui riceve solo la prova.
+  disp = (disp ?? []).filter((d) => (provaCiclo ? d.app === "ciclo" : d.app !== "ciclo" && (prova || d.app !== "krasimir")));
+  let provaKrasimir: Messaggio | null = null;
+  if (prova && disp.some((d) => d.app === "krasimir")) {
+    const { data: q } = await db.from("quaderno_krasimir").select("data").eq("user_id", utenti[0]).maybeSingle();
+    const g = ((q?.data?.goals ?? []) as ObiettivoK[]).find((x) => x.type === "day" && x.date === oggi && !x.done && !x.failed && x.text);
+    provaKrasimir = {
+      title: "Prova riuscita!",
+      body: g ? frase(g.text!) : "Le notifiche funzionano. Ti avviso per ogni cosa da fare, con suono e vibrazione.",
+      tag: "krasimir-prova",
+      vibrate: VIBRA,
+    };
+  }
   for (const d of disp) {
+    if (d.app === "krasimir") { if (provaKrasimir) await invia(d, provaKrasimir); continue; }
     const kendra = d.app === "kendra";
     const msg: Messaggio = provaCiclo
       ? { title: "Prova riuscita!", body: "Le notifiche del ciclo funzionano. Ti avviso prima del ciclo, nei giorni fertili e se è in ritardo." }
