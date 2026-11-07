@@ -16,6 +16,58 @@ html, body { margin: 0; min-height: 100% }
 :root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px) }
 img { max-width: 100% }
 [hidden] { display: none !important }
+
+/* Grafici a linea (tipo borsa) e a cerchio */
+.lc { display: grid; gap: 8px; min-width: 0 }
+.lc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px }
+.lc-head .v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 600; line-height: 1.1 }
+.lc-head .s { font-size: 12.5px; color: var(--muted) }
+.chg { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap }
+.chg.good { color: var(--goal); background: color-mix(in srgb, var(--goal) 15%, transparent) }
+.chg.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 13%, transparent) }
+.chg.flat { color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent) }
+.lc-box { position: relative; height: 150px; margin-right: 6px }
+.lc-box svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible }
+.lc-box .ln { fill: none; stroke: var(--c); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke }
+.lc-box .cmp { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; opacity: .7; vector-effect: non-scaling-stroke }
+.lc-box .ref { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke }
+.lc-box .ref.goal { stroke: var(--muted); stroke-dasharray: 4 4; opacity: .8 }
+.lc-dot { position: absolute; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px var(--surface) }
+.lc-dot::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--c); opacity: 0 }
+.lc-tag { position: absolute; transform: translate(-100%, -130%); font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--c); white-space: nowrap; background: var(--surface); padding: 0 3px; border-radius: 4px }
+.lc-y { position: absolute; left: 0; font-family: var(--font-mono); font-size: 10px; color: var(--muted); transform: translateY(-110%) }
+.lc-x { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-right: 6px }
+.lc-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted) }
+.lc-leg i { display: inline-block; width: 14px; height: 0; border-top: 2.5px solid var(--c); vertical-align: middle; margin-right: 5px }
+.lc-leg i.d { border-top: 2px dashed var(--muted) }
+.lcs { display: grid; gap: 22px }
+@media (min-width: 760px) { .lcs.two { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.rings { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 18px 12px }
+.rg { display: grid; justify-items: center; gap: 6px; text-align: center; min-width: 0 }
+.rg-c { position: relative; width: 112px; height: 112px }
+.rg-c svg { width: 100%; height: 100%; transform: rotate(-90deg) }
+.rg-c .bg { fill: none; stroke: color-mix(in srgb, var(--c) 14%, var(--bg)); stroke-width: 11 }
+.rg-c .fg { fill: none; stroke: var(--c); stroke-width: 11; stroke-linecap: round }
+.rg-c .ov { fill: none; stroke: var(--danger); stroke-width: 11; stroke-linecap: round }
+.rg-in { position: absolute; inset: 0; display: grid; place-content: center; gap: 1px }
+.rg-in b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 19px; line-height: 1.1 }
+.rg-in small { font-size: 10.5px; color: var(--muted) }
+.rg .t { font-size: 13.5px; font-weight: 600 }
+.rg .s { font-size: 12px; color: var(--muted); line-height: 1.35 }
+@media (prefers-reduced-motion: no-preference) {
+  .lc-box svg { animation: lcReveal 1.2s cubic-bezier(.3,.7,.3,1) both }
+  .lc-dot { animation: lcPop .45s 1.05s cubic-bezier(.3,1.6,.5,1) both }
+  .lc-dot::after { animation: lcPulse 2.4s 1.5s ease-out infinite }
+  .lc-tag { animation: lcIn .4s 1.1s ease both }
+  .rg-c .fg, .rg-c .ov { animation: rgFill 1.1s cubic-bezier(.3,.7,.3,1) both }
+  .rg-c .ov { animation-delay: .8s }
+  .rg-in { animation: lcIn .5s .5s ease both }
+}
+@keyframes lcReveal { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+@keyframes lcIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes lcPop { from { transform: scale(0) } to { transform: scale(1) } }
+@keyframes lcPulse { 0% { transform: scale(.6); opacity: .7 } 100% { transform: scale(1.8); opacity: 0 } }
+@keyframes rgFill { from { stroke-dashoffset: var(--full) } }
 </style>
 <style>
 /* Layout: app a giornata. Barra della data in alto, sezioni a schede (in basso su telefono, a sinistra su computer). */
@@ -506,7 +558,8 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
         <div class="tones">${tones}</div>
         <div class="form">
           ${rem.on ? '<button class="btn ghost" data-rem="test">Mandami una prova</button><button class="btn ghost" data-rem="off">Disattiva</button>' : '<button class="btn" data-rem="on">Attiva</button>'}
-        </div>`;
+        </div>
+        ${rem.on ? '<p class="empty">Se le notifiche arrivano senza suono: tieni premuta una notifica, apri le impostazioni e scegli <b>Suono</b> (o <b>Avvisa</b>). Su Android 15 spegni anche <b>Raffreddamento notifiche</b> in Impostazioni › Notifiche, altrimenti quando ne arrivano tante insieme suona solo la prima.</p>' : ''}`;
     }
     return `<section class="panel"><h2>Promemoria</h2>${body}</section>`;
   }
@@ -646,8 +699,111 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
     return `<section class="panel">
       <div class="score"><div><span class="label">Punti accumulati</span><div class="big">${tot}</div></div>
         <span class="sub">${day === todayIso() ? 'oggi' : esc(fmtDM(day))} ${fmtPts(today)} · settimana ${fmtPts(week)}</span></div>
+      ${rules ? pointsLine(day, '--accent', true) : ''}
       ${rules ? `<ul class="rules"><li>Obiettivo del giorno fatto: +${PUNTI.day}</li><li>Obiettivo della settimana fatto: +${PUNTI.week}</li><li>Obiettivo del giorno non fatto, o lasciato senza spunta: ${fmtPts(PUNTI.fail)} (e ti becchi un insulto)</li></ul>` : ''}
     </section>`;
+  }
+
+
+  // ---------- grafici a linea (tipo borsa) e a cerchio ----------
+  let lcN = 0;
+  // Variazione: "good" dice se salire è un bene (punti, obiettivi) o un male (spese).
+  function chgBadge(cur, prev, { good = 'up', fmt = null, pctMode = true } = {}) {
+    if (prev == null || (pctMode && !prev)) return '';
+    const d = cur - prev;
+    const p = pctMode ? Math.round((d / Math.abs(prev)) * 100) : null;
+    if ((pctMode ? p : Math.round(d)) === 0) return `<span class="chg flat">= stabile</span>`;
+    const up = d > 0;
+    const cls = (up === (good === 'up')) ? 'good' : 'bad';
+    const txt = pctMode ? `${up ? '+' : '−'}${Math.abs(p)}%` : `${up ? '+' : '−'}${fmt ? fmt(Math.abs(d)) : Math.abs(Math.round(d))}`;
+    return `<span class="chg ${cls}">${up ? '▲' : '▼'} ${txt}</span>`;
+  }
+  // series: valori (null = giorno futuro o senza dato), cmp: serie di confronto tratteggiata.
+  function lineChart({ series, cmp = null, labels = [], color = '--accent', fmt = (v) => v, value = null, badge = '', sub = '', legend = null, goalLine = null }) {
+    const id = 'lg' + (++lcN);
+    const pts = series.map((v, i) => [i, v]).filter((p) => p[1] != null);
+    const all = [...pts.map((p) => p[1]), ...(cmp || []).filter((v) => v != null), ...(goalLine != null ? [goalLine] : [])];
+    let lo = Math.min(0, ...all), hi = Math.max(...all, 1);
+    if (hi === lo) hi = lo + 1;
+    hi += (hi - lo) * 0.12;
+    const n = Math.max(series.length, (cmp || []).length) - 1 || 1;
+    const X = (i) => (i / n) * 100, Y = (v) => (1 - (v - lo) / (hi - lo)) * 100;
+    const path = (arr) => arr.map((p, k) => `${k ? 'L' : 'M'}${X(p[0]).toFixed(2)} ${Y(p[1]).toFixed(2)}`).join(' ');
+    const last = pts[pts.length - 1];
+    let svg = '';
+    if (lo < 0) svg += `<line class="ref" x1="0" x2="100" y1="${Y(0)}" y2="${Y(0)}"/>`;
+    svg += `<line class="ref" x1="0" x2="100" y1="100" y2="100"/>`;
+    if (goalLine != null) svg += `<line class="ref goal" x1="0" x2="100" y1="${Y(goalLine)}" y2="${Y(goalLine)}"/>`;
+    if (cmp) { const c = cmp.map((v, i) => [i, v]).filter((p) => p[1] != null); if (c.length > 1) svg += `<path class="cmp" d="${path(c)}"/>`; }
+    if (pts.length > 1) {
+      svg += `<path d="${path(pts)} L${X(last[0])} ${Y(Math.max(lo, 0))} L${X(pts[0][0])} ${Y(Math.max(lo, 0))} Z" fill="url(#${id})"/>`;
+      svg += `<path class="ln" d="${path(pts)}"/>`;
+    }
+    const head = value != null ? `<div class="lc-head"><span class="v">${value}</span>${badge}${sub ? `<span class="s">${sub}</span>` : ''}</div>` : '';
+    const dot = last ? `<span class="lc-dot" style="left:${X(last[0])}%;top:${Y(last[1])}%"></span>${pts.length > 1 ? `<span class="lc-tag" style="left:${Math.max(X(last[0]), 22)}%;top:${Y(last[1])}%">${fmt(last[1])}</span>` : ''}` : '';
+    const top = hi - (hi - lo) * 0.12 / 1.12;
+    return `<div class="lc" style="--c:var(${color})">${head}
+      <div class="lc-box" role="img" aria-label="${esc(sub || 'Andamento')}">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(${color})" stop-opacity=".28"/><stop offset="1" stop-color="var(${color})" stop-opacity="0"/></linearGradient></defs>${svg}</svg>
+        <span class="lc-y" style="top:${Y(top)}%">${fmt(top)}</span>${dot}
+      </div>
+      ${labels.length ? `<div class="lc-x">${labels.map((l) => `<span>${l}</span>`).join('')}</div>` : ''}
+      ${legend ? `<div class="lc-leg">${legend}</div>` : ''}</div>`;
+  }
+  // Cerchio: quanto è pieno (0..1, oltre 1 la parte in più è rossa) e cosa c'è dentro.
+  function ringChart({ frac, center, small = '', title, sub = '', color = '--accent' }) {
+    const R = 46, C = 2 * Math.PI * R;
+    const f = Math.max(0, Math.min(1, frac || 0)), over = Math.max(0, Math.min(1, (frac || 0) - 1));
+    const arc = (cls, v) => v > 0.001 ? `<circle class="${cls}" cx="56" cy="56" r="${R}" stroke-dasharray="${(C * v).toFixed(1)} ${C.toFixed(1)}" style="--full:${(C * v).toFixed(1)}"/>` : '';
+    return `<div class="rg" style="--c:var(${color})"><div class="rg-c"><svg viewBox="0 0 112 112" aria-hidden="true"><circle class="bg" cx="56" cy="56" r="${R}"/>${arc('fg', f)}${arc('ov', over)}</svg>
+      <div class="rg-in"><b>${center}</b>${small ? `<small>${small}</small>` : ''}</div></div>
+      <span class="t">${title}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
+  }
+  // Serie giorno per giorno di un mese: cumulata (spese, ore) oppure valore del giorno.
+  function monthSeries(day, f, { cum = true, stopToday = true } = {}) {
+    const t = todayIso(); let a = 0;
+    return monthDays(day).map((d) => { if (stopToday && d > t) return null; const v = f(d) || 0; a += v; return cum ? a : v; });
+  }
+  const monthLabels = (day) => { const ds = monthDays(day); return [ds[0], ds[9], ds[19], ds[ds.length - 1]].map((d) => `${Number(d.slice(8))} ${fmtMonthShort(d)}`); };
+  // Punti accumulati giorno per giorno, come un titolo in borsa (salgono e scendono).
+  const ptsOnDay = (d) => data.goals.filter((g) => g.date === d).reduce((a, g) => a + goalPoints(g), 0);
+  function pointsSeries(end, n) {
+    const from = addDays(end, -(n - 1));
+    let a = data.goals.filter((g) => g.date < from).reduce((s, g) => s + goalPoints(g), 0);
+    const out = [];
+    for (let i = 0; i < n; i++) { const d = addDays(from, i); a += ptsOnDay(d); out.push(a); }
+    return { from, vals: out };
+  }
+  function pointsLine(day, color, compact = false) {
+    const t = todayIso(), end = day > t ? t : day, N = 30;
+    const { from, vals } = pointsSeries(end, N);
+    const start = vals[0] - ptsOnDay(from);
+    return lineChart({ series: vals, color, fmt: (v) => Math.round(v), value: compact ? '' : vals[N - 1], badge: chgBadge(vals[N - 1], start, { good: 'up', pctMode: false }),
+      sub: 'punti, ultimi 30 giorni', labels: [fmtDM(from), fmtDM(addDays(end, -15)), fmtDM(end)] });
+  }
+  // % di obiettivi fatti settimana per settimana (ultime 12).
+  function goalsLine(day, color) {
+    const t = todayIso(), end = day > t ? t : day;
+    const weeks = [...Array(12)].map((_, i) => monday(addDays(end, -7 * (11 - i))));
+    const vals = weeks.map((w) => {
+      const ds = weekDays(w).filter((d) => d <= t);
+      const gs = data.goals.filter((g) => (g.type === 'day' && ds.includes(g.date)) || (g.type === 'week' && g.date === w));
+      return gs.length ? Math.round((gs.filter((g) => g.done).length / gs.length) * 100) : null;
+    });
+    const known = vals.filter((v) => v != null);
+    const cur = known[known.length - 1], prev = known[known.length - 2];
+    return lineChart({ series: vals, color, fmt: (v) => Math.round(v) + '%', value: cur != null ? cur + '%' : '—',
+      badge: cur != null && prev != null ? chgBadge(cur, prev, { good: 'up', pctMode: false, fmt: (v) => Math.round(v) + '%' }) : '',
+      sub: 'obiettivi fatti, settimana per settimana', labels: [fmtDM(weeks[0]), fmtDM(weeks[6]), fmtDM(weeks[11])] });
+  }
+  // Spese del mese che si sommano giorno dopo giorno, con il mese prima tratteggiato.
+  function spendLine(day, prevLabel) {
+    const cur = monthSeries(day, spentOn), prev = monthSeries(addMonths(day, -1), spentOn, { stopToday: false });
+    const known = cur.filter((v) => v != null), i = known.length - 1;
+    const now = known[i] || 0, then = prev[Math.min(i, prev.length - 1)] || 0;
+    return lineChart({ series: cur, cmp: prev, color: '--spend', fmt: (v) => Math.round(v) + '€', value: eur(now),
+      badge: then ? chgBadge(now, then, { good: 'down' }) : '', sub: `rispetto allo stesso giorno di ${prevLabel}`, labels: monthLabels(day),
+      legend: `<span><i></i>questo mese</span><span><i class="d"></i>${prevLabel}</span>` });
   }
 
   // ---------- viste ----------
@@ -836,6 +992,24 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       const mPhone = months.map((m) => { const v = monthDays(m).map(phoneOn).filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; });
       const dayName = (d) => `${Number(d.slice(8))} ${fmtMonthShort(d)}`;
 
+      // Cerchi: questo mese rispetto al mese prima.
+      const pm = fmtMonthShort(prev);
+      const gPrevAll = data.goals.filter((g) => prevDays.includes(g.date));
+      const gPctPrev = gPrevAll.length ? Math.round((gPrevAll.filter((g) => g.done).length / gPrevAll.length) * 100) : null;
+      const ringGoals = ringChart({ frac: gPct / 100, center: gPct + '%', small: 'fatti', title: 'Obiettivi', color: '--goal',
+        sub: gPctPrev != null ? `${chgBadge(gPct, gPctPrev, { pctMode: false, fmt: (v) => v + '%' })}<br>a ${pm}: ${gPctPrev}%` : `nessun dato a ${pm}` });
+      // Nel mese in corso il confronto è con lo stesso giorno del mese prima.
+      const fino = monthStart(day) === monthStart(t) ? Number(t.slice(8)) : 31;
+      const primaFino = (f) => sum(prevDays.slice(0, fino), f);
+      const spendP = primaFino(spentOn);
+      const ringSpend = ringChart({ frac: spendP ? spend / spendP : 0, center: spendP ? Math.round((spend / spendP) * 100) + '%' : '—', small: spendP ? `di ${pm}` : '', title: 'Spese', color: '--spend',
+        sub: spendP ? `${chgBadge(spend, spendP, { good: 'down' })}<br>${eur(spend)} su ${eur(spendP)}` : `nessuna spesa a ${pm}` });
+      const workP = primaFino(workOn);
+      const ringWork = ringChart({ frac: workP ? work / workP : 0, center: workP ? Math.round((work / workP) * 100) + '%' : hm(work), small: workP ? `di ${pm}` : '', title: 'Lavoro', color: '--work',
+        sub: workP ? `${chgBadge(work, workP, { good: 'up' })}<br>${hm(work)} su ${hm(workP)}` : `nessun dato a ${pm}` });
+      const ringPhone = ringChart({ frac: phonePrevAvg && phoneVals.length ? phoneAvg / phonePrevAvg : 0, center: phoneVals.length ? hm(phoneAvg) : '—', small: 'al giorno', title: 'Telefono', color: '--phone',
+        sub: phonePrevAvg && phoneVals.length ? `${chgBadge(phoneAvg, phonePrevAvg, { good: 'down' })}<br>a ${pm}: ${hm(phonePrevAvg)}` : `nessun dato a ${pm}` });
+
       return `
       <div class="stats">
         <div class="stat" style="--c:var(--goal)"><span class="label">Obiettivi</span><span class="big">${gPct}%</span><span class="sub">${gDone} di ${goals.length} completati · ${fmtPts(pointsOf(goals))} punti</span></div>
@@ -844,23 +1018,32 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
         <div class="stat" style="--c:var(--work)"><span class="label">Lavoro</span><span class="big">${hm(work)}</span><span class="sub">in ${workDays} ${workDays === 1 ? 'giorno' : 'giorni'}</span></div>
       </div>
       <section class="panel">
+        <h2>Andamento <span class="aside">rispetto a ${pm}${fino < 31 ? `, fino al ${fino}` : ''}</span></h2>
+        <div class="rings">${ringGoals}${ringSpend}${ringWork}${ringPhone}</div>
+      </section>
+      <section class="panel">
+        <h2>Obiettivi e punti <span class="aside num">${fmtPts(pointsOf(goals))} punti</span></h2>
+        <div class="lcs two">${goalsLine(day, '--goal')}${pointsLine(day, '--accent')}</div>
+      </section>
+      <section class="panel">
         <h2>Spese <span class="aside num">${eur(spend)}</span></h2>
-        <span class="label">${vs(spend, spendPrev, eur)}</span>
-        ${monthChart(day, spentOn, eur, '--spend')}
+        ${spendLine(day, pm)}
         ${cats.length ? `<span class="label">Per categoria</span>${hbars(cats, eur, '--spend')}` : '<p class="empty">Nessuna spesa in questo mese.</p>'}
         ${topExp ? `<dl class="facts"><div><dt>Spesa più alta</dt><dd>${eur(topExp.amount)}</dd></div><div><dt>Di cosa</dt><dd style="font-family:var(--font-body)">${esc(topExp.note || topExp.cat)} · ${dayName(topExp.date)}</dd></div></dl>` : ''}
       </section>
       <section class="panel">
         <h2>Utilizzo telefono <span class="aside">${phoneVals.length} ${phoneVals.length === 1 ? 'giorno inserito' : 'giorni inseriti'}</span></h2>
-        <span class="label">${phoneVals.length ? vs(Math.round(phoneAvg), Math.round(phonePrevAvg), hm) : 'Nessun dato in questo mese'}</span>
-        ${monthChart(day, phoneOn, hm, '--phone')}
+        ${phoneVals.length ? lineChart({ series: monthSeries(day, phoneOn, { cum: false }).map((v, i) => (v ? v : null)), cmp: monthSeries(prev, phoneOn, { cum: false, stopToday: false }).map((v) => v || null), color: '--phone', fmt: hm,
+          value: hm(phoneAvg), badge: phonePrevAvg ? chgBadge(phoneAvg, phonePrevAvg, { good: 'down' }) : '', sub: `media al giorno, rispetto a ${pm}`, labels: monthLabels(day),
+          legend: `<span><i></i>questo mese</span><span><i class="d"></i>${pm}</span>` }) : '<span class="label">Nessun dato in questo mese</span>'}
         ${phoneVals.length ? `<dl class="facts"><div><dt>Media al giorno</dt><dd>${hm(phoneAvg)}</dd></div><div><dt>Giorno con più uso</dt><dd>${hm(phoneMax[1])} · ${dayName(phoneMax[0])}</dd></div><div><dt>Giorno con meno uso</dt><dd>${hm(phoneMin[1])} · ${dayName(phoneMin[0])}</dd></div></dl>` : ''}
         ${phoneVals.length ? `<span class="label">Per categoria, media al giorno</span>${hbars(phoneByCat(days).map(([k, v]) => [k, v / phoneVals.length]), hm, '--phone')}` : ''}
       </section>
       <section class="panel">
         <h2>Lavoro sui progetti <span class="aside num">${hm(work)}</span></h2>
-        <span class="label">${vs(work, workPrev, hm)}</span>
-        ${monthChart(day, workOn, hm, '--work')}
+        ${lineChart({ series: monthSeries(day, workOn), cmp: monthSeries(prev, workOn, { stopToday: false }), color: '--work', fmt: (v) => Math.round(v / 60) + 'h',
+          value: hm(work), badge: (() => { const k = monthSeries(day, workOn).filter((v) => v != null); const then = monthSeries(prev, workOn, { stopToday: false })[k.length - 1] || 0; return then ? chgBadge(k[k.length - 1] || 0, then, { good: 'up' }) : ''; })(),
+          sub: `ore sommate, rispetto allo stesso giorno di ${pm}`, labels: monthLabels(day), legend: `<span><i></i>questo mese</span><span><i class="d"></i>${pm}</span>` })}
         ${projs.length ? `<span class="label">Per progetto</span>${hbars(projs, hm, '--work')}` : '<p class="empty">Nessun tempo registrato in questo mese.</p>'}
         ${workDays ? `<dl class="facts"><div><dt>Media nei giorni lavorati</dt><dd>${hm(work / workDays)}</dd></div><div><dt>Giorni lavorati</dt><dd>${workDays} su ${nDays}</dd></div></dl>` : ''}
       </section>
