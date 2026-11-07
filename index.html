@@ -1109,6 +1109,37 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
   }
   setInterval(() => { const c = document.getElementById('clock'); if (c) c.textContent = clockText(); }, 1000);
 
+  // Ferma il cronometro all'ora "end" e salva il lavoro. Restituisce i minuti salvati.
+  function stopTimer(end) {
+    const t = data.timer, min = Math.max(1, Math.round((end - t.start) / 60000));
+    data.work.push({ id: uid(), date: iso(new Date(t.start)), project: t.project, min, note: '' });
+    data.timer = null;
+    return min;
+  }
+  // Cronometro dimenticato: mentre l'app è aperta segno l'ultima ora in cui l'hai vista.
+  // Se l'app viene chiusa e poi riaperta con il cronometro ancora acceso, lo fermo a quell'ora.
+  // sessionStorage resta solo finché l'app è aperta: così un semplice ricaricamento non lo ferma.
+  const SEEN = KEY + ':timer-visto';
+  function markSeen() {
+    try {
+      if (data.timer) localStorage.setItem(SEEN, JSON.stringify({ start: data.timer.start, seen: Date.now() }));
+      else localStorage.removeItem(SEEN);
+    } catch (e) {}
+  }
+  function stopForgottenTimer() {
+    let reopened = true;
+    try { reopened = !sessionStorage.getItem(SEEN); sessionStorage.setItem(SEEN, '1'); } catch (e) {}
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(SEEN) || 'null'); } catch (e) {}
+    if (!reopened || !data.timer || !s || s.start !== data.timer.start) return;
+    const project = data.timer.project, min = stopTimer(Math.max(s.seen, data.timer.start));
+    markSeen(); save();
+    toast(`Avevi chiuso l'app con il cronometro acceso: salvati ${hm(min)} su ${project}`);
+  }
+  setInterval(() => { if (document.visibilityState === 'visible') markSeen(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') markSeen(); });
+  window.addEventListener('pagehide', markSeen);
+
   // ---------- render ----------
   const $ = (id) => document.getElementById(id);
   function render() {
@@ -1279,9 +1310,8 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       commit('Eliminato', true); return;
     }
     if (el.dataset.timer === 'stop') {
-      const t = data.timer, min = Math.max(1, Math.round((Date.now() - t.start) / 60000));
-      data.work.push({ id: uid(), date: iso(new Date(t.start)), project: t.project, min, note: '' });
-      data.timer = null; fx = { added: true }; commit(`Salvati ${hm(min)} su ${t.project}`); return;
+      const t = data.timer, min = stopTimer(Date.now());
+      fx = { added: true }; commit(`Salvati ${hm(min)} su ${t.project}`); return;
     }
     if (el.dataset.hour) { remToggleHour(Number(el.dataset.hour)); return; }
     if (el.dataset.rem) { ({ on: remOn, off: remOff, test: remTest })[el.dataset.rem](); return; }
@@ -1330,7 +1360,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       commit('Idea salvata'); $('i-text').focus();
     } else if (f === 'f-timer') {
       data.timer = { start: Date.now(), project: $('t-proj').value.trim() };
-      commit('Cronometro avviato');
+      markSeen(); commit('Cronometro avviato');
     }
   });
 
@@ -1352,6 +1382,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       return;
     }
     if (was === userId) return;
+    stopForgottenTimer();
     render();
     if (isDirty()) { push(); checkMissed(); } else pull();
     markOpened(); loadReminder();
