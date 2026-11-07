@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
   type Dispositivo = { endpoint: string; subscription: webpush.PushSubscription; user_id: string; app?: string };
   const invia = async (d: Dispositivo, msg: Messaggio) => {
     try {
-      await webpush.sendNotification(d.subscription, JSON.stringify({ ...msg, url: URL_DI[d.app ?? "kristian"] ?? APP_URL }), { TTL: 3600 });
+      await webpush.sendNotification(d.subscription, JSON.stringify({ ...msg, url: URL_DI[d.app ?? "kristian"] ?? APP_URL }), { TTL: 3600, urgency: "high" });
       inviate++;
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode;
