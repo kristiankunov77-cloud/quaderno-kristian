@@ -227,6 +227,26 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
 .hbar .t i { display: block; height: 100%; background: var(--c) }
 .hbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .hbar .num { text-align: right }
+.hbars.open-able { gap: 2px }
+.hd { border-radius: 10px }
+.hd summary.hbar { grid-template-columns: minmax(0, 8.5em) 1fr 5.5em 16px; list-style: none; cursor: pointer; padding: 7px 6px; margin: 0 -6px; border-radius: 10px }
+.hd summary.hbar::-webkit-details-marker { display: none }
+.hd summary.hbar:hover { background: var(--bg) }
+.hd .chev { width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s }
+.hd[open] .chev { transform: rotate(90deg) }
+.hd[open] summary.hbar { background: var(--bg) }
+.hdl { margin: 4px 0 8px; padding: 4px 12px; border-left: 3px solid var(--c); background: var(--bg); border-radius: 0 10px 10px 0 }
+.hdl ul { list-style: none; margin: 0; padding: 0 }
+.hdl li { display: grid; grid-template-columns: 4.2em 1fr auto; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px }
+.hdl li:first-child { border-top: 0 }
+.hdl .dd { color: var(--muted); font-size: 13px }
+.hdl .nn { overflow-wrap: anywhere }
+.hdl .nn em { color: var(--muted) }
+.hdl .num { text-align: right; font-weight: 600 }
+.hdf { margin: 2px 0 6px; font-size: 12.5px; color: var(--muted) }
+.label .hint { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: .8 }
+@media (prefers-reduced-motion: no-preference) { .hd[open] .hdl { animation: hdIn .25s ease both } @keyframes hdIn { from { opacity: 0; transform: translateY(-4px) } } }
+@media (prefers-reduced-motion: reduce) { .hd .chev { transition: none } }
 
 .banner { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 14px; border-radius: var(--r); background: var(--accent-soft); font-size: 14px }
 .banner p { margin: 0; flex: 1 1 220px }
@@ -678,11 +698,39 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
         <span class="d">${fmtShortDay(d)}</span>
       </div>`).join('')}</div>`;
   }
-  function hbars(entries, fmt, color) {
+  // Barre per categoria. Con "detail" ogni barra si può toccare e mostra le singole voci.
+  const CHEV = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+  function hbars(entries, fmt, color, detail) {
     const max = Math.max(...entries.map((e) => e[1]), 1);
-    return `<div class="hbars" style="--c:var(${color})">${entries.map(([k, v]) => `
-      <div class="hbar"><span title="${esc(k)}">${esc(k)}</span><div class="t"><i style="width:${(v / max) * 100}%"></i></div><span class="num">${fmt(v)}</span></div>`).join('')}</div>`;
+    return `<div class="hbars${detail ? ' open-able' : ''}" style="--c:var(${color})">${entries.map(([k, v]) => {
+      const row = `<span title="${esc(k)}">${esc(k)}</span><div class="t"><i style="width:${(v / max) * 100}%"></i></div><span class="num">${fmt(v)}</span>`;
+      return detail ? `<details class="hd"><summary class="hbar">${row}${CHEV}</summary>${detail(k)}</details>` : `<div class="hbar">${row}</div>`;
+    }).join('')}</div>`;
   }
+  const byDateDesc = (a, b) => (b.date < a.date ? -1 : b.date > a.date ? 1 : 0);
+  const detList = (rows, foot) => `<div class="hdl"><ul>${rows.join('')}</ul>${foot ? `<p class="hdf">${foot}</p>` : ''}</div>`;
+  const detRow = (date, txt, val) => `<li><span class="dd">${fmtDM(date)}</span><span class="nn">${txt}</span><span class="num">${val}</span></li>`;
+  // Le spese di una categoria nei giorni indicati.
+  // Le sessioni di lavoro di un progetto.
+  const workDetail = (days) => (k) => {
+    const xs = data.work.filter((w) => w.project === k && days.includes(w.date)).sort(byDateDesc);
+    const tot = xs.reduce((a, w) => a + w.min, 0);
+    return detList(xs.map((w) => detRow(w.date, w.note ? esc(w.note) : '<em>senza nota</em>', hm(w.min))),
+      xs.length > 1 ? `${xs.length} sessioni · in media ${hm(tot / xs.length)} l'una` : '');
+  };
+  // I giorni in cui hai usato una categoria del telefono.
+  const phoneDetail = (days) => (k) => {
+    const xs = days.filter((d) => data.phone[d]).map((d) => { const p = data.phone[d]; const c = p.cats || { Altro: p.min }; return { date: d, min: c[k] || 0 }; })
+      .filter((x) => x.min > 0).sort(byDateDesc);
+    const top = xs.slice().sort((a, b) => b.min - a.min)[0];
+    return detList(xs.map((x) => detRow(x.date, '', hm(x.min))), top && xs.length > 1 ? `${xs.length} giorni · il giorno con più uso: ${fmtDM(top.date)}` : '');
+  };
+  const expDetail = (days) => (k) => {
+    const xs = data.expenses.filter((e) => e.cat === k && days.includes(e.date)).sort((a, b) => byDateDesc(a, b) || b.amount - a.amount);
+    const tot = xs.reduce((a, e) => a + e.amount, 0);
+    return detList(xs.map((e) => detRow(e.date, e.note ? esc(e.note) : '<em>senza nota</em>', eur(e.amount))),
+      xs.length > 1 ? `${xs.length} spese · in media ${eur(tot / xs.length)} l'una` : '');
+  };
   const delBtn = (kind, id) => `<button class="del" data-del="${kind}" data-id="${id}" aria-label="Elimina">${X}</button>`;
   const weekLabel = (day) => { const d = weekDays(day); return `${fmtDM(d[0])} – ${fmtDM(d[6])}`; };
 
@@ -888,7 +936,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       <section class="panel">
         <h2>Settimana <span class="aside num">${eur(weekTot)}</span></h2>
         ${chart(day, spentOn, (v) => Math.round(v) + '€', '--spend')}
-        ${cats.length ? `<span class="label">Per categoria</span>${hbars(cats, eur, '--spend')}` : ''}
+        ${cats.length ? `<span class="label">Per categoria <span class="hint">· tocca per vedere le spese</span></span>${hbars(cats, eur, '--spend', expDetail(days))}` : ''}
       </section>`;
     },
 
@@ -1028,7 +1076,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       <section class="panel">
         <h2>Spese <span class="aside num">${eur(spend)}</span></h2>
         ${spendLine(day, pm)}
-        ${cats.length ? `<span class="label">Per categoria</span>${hbars(cats, eur, '--spend')}` : '<p class="empty">Nessuna spesa in questo mese.</p>'}
+        ${cats.length ? `<span class="label">Per categoria <span class="hint">· tocca per vedere le spese</span></span>${hbars(cats, eur, '--spend', expDetail(days))}` : '<p class="empty">Nessuna spesa in questo mese.</p>'}
         ${topExp ? `<dl class="facts"><div><dt>Spesa più alta</dt><dd>${eur(topExp.amount)}</dd></div><div><dt>Di cosa</dt><dd style="font-family:var(--font-body)">${esc(topExp.note || topExp.cat)} · ${dayName(topExp.date)}</dd></div></dl>` : ''}
       </section>
       <section class="panel">
@@ -1037,14 +1085,14 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
           value: hm(phoneAvg), badge: phonePrevAvg ? chgBadge(phoneAvg, phonePrevAvg, { good: 'down' }) : '', sub: `media al giorno, rispetto a ${pm}`, labels: monthLabels(day),
           legend: `<span><i></i>questo mese</span><span><i class="d"></i>${pm}</span>` }) : '<span class="label">Nessun dato in questo mese</span>'}
         ${phoneVals.length ? `<dl class="facts"><div><dt>Media al giorno</dt><dd>${hm(phoneAvg)}</dd></div><div><dt>Giorno con più uso</dt><dd>${hm(phoneMax[1])} · ${dayName(phoneMax[0])}</dd></div><div><dt>Giorno con meno uso</dt><dd>${hm(phoneMin[1])} · ${dayName(phoneMin[0])}</dd></div></dl>` : ''}
-        ${phoneVals.length ? `<span class="label">Per categoria, media al giorno</span>${hbars(phoneByCat(days).map(([k, v]) => [k, v / phoneVals.length]), hm, '--phone')}` : ''}
+        ${phoneVals.length ? `<span class="label">Per categoria, media al giorno <span class="hint">· tocca per i giorni</span></span>${hbars(phoneByCat(days).map(([k, v]) => [k, v / phoneVals.length]), hm, '--phone', phoneDetail(days))}` : ''}
       </section>
       <section class="panel">
         <h2>Lavoro sui progetti <span class="aside num">${hm(work)}</span></h2>
         ${lineChart({ series: monthSeries(day, workOn), cmp: monthSeries(prev, workOn, { stopToday: false }), color: '--work', fmt: (v) => Math.round(v / 60) + 'h',
           value: hm(work), badge: (() => { const k = monthSeries(day, workOn).filter((v) => v != null); const then = monthSeries(prev, workOn, { stopToday: false })[k.length - 1] || 0; return then ? chgBadge(k[k.length - 1] || 0, then, { good: 'up' }) : ''; })(),
           sub: `ore sommate, rispetto allo stesso giorno di ${pm}`, labels: monthLabels(day), legend: `<span><i></i>questo mese</span><span><i class="d"></i>${pm}</span>` })}
-        ${projs.length ? `<span class="label">Per progetto</span>${hbars(projs, hm, '--work')}` : '<p class="empty">Nessun tempo registrato in questo mese.</p>'}
+        ${projs.length ? `<span class="label">Per progetto <span class="hint">· tocca per i dettagli</span></span>${hbars(projs, hm, '--work', workDetail(days))}` : '<p class="empty">Nessun tempo registrato in questo mese.</p>'}
         ${workDays ? `<dl class="facts"><div><dt>Media nei giorni lavorati</dt><dd>${hm(work / workDays)}</dd></div><div><dt>Giorni lavorati</dt><dd>${workDays} su ${nDays}</dd></div></dl>` : ''}
       </section>
       <section class="panel">
@@ -1084,7 +1132,7 @@ input, select { width: 100%; height: 42px; border: 1px solid var(--line); backgr
       <section class="panel">
         <h2>Settimana <span class="aside num">${hm(projs.reduce((a, p) => a + p[1], 0))}</span></h2>
         ${chart(day, workOn, hm, '--work')}
-        ${projs.length ? `<span class="label">Per progetto</span>${hbars(projs, hm, '--work')}` : ''}
+        ${projs.length ? `<span class="label">Per progetto <span class="hint">· tocca per i dettagli</span></span>${hbars(projs, hm, '--work', workDetail(days))}` : ''}
       </section>`;
     }
   };
